@@ -3,6 +3,8 @@ import type { CameraMode } from "../interaction/cameraRig";
 export interface HudCallbacks {
   onEnterFirstPerson: () => void;
   onExitToOrbit: () => void;
+  /** Clicking the "Paused" card should re-acquire the pointer / start playing. */
+  onResume: () => void;
 }
 
 /**
@@ -39,16 +41,16 @@ export class Hud {
 
       <div class="ui-card ui-card--small" data-role="paused">
         <h2>Paused</h2>
-        <p>Click anywhere in the lab to look around.</p>
+        <p>Click anywhere in the lab (or here) to look around.</p>
         <button type="button" data-action="exit">Back to overview</button>
       </div>
 
       <div class="ui-crosshair" data-role="crosshair"></div>
       <div class="ui-hintbar" data-role="hint">
         <span>W A S D</span> move &nbsp;&middot;&nbsp; <span>Shift</span> run
+        &nbsp;&middot;&nbsp; <span>drag</span> to look
         &nbsp;&middot;&nbsp; <span>Left-click</span> patch a cord
         &nbsp;&middot;&nbsp; <span>Right-click</span> unplug
-        &nbsp;&middot;&nbsp; <span>Esc</span> release cursor
       </div>
     `;
     document.body.appendChild(root);
@@ -63,18 +65,30 @@ export class Hud {
     enter?.addEventListener("click", callbacks.onEnterFirstPerson);
     exit?.addEventListener("click", callbacks.onExitToOrbit);
 
+    // Clicking the card itself (but not the button) resumes looking.
+    this.paused.addEventListener("click", (event) => {
+      if ((event.target as HTMLElement).closest("button")) return;
+      callbacks.onResume();
+    });
+
     this.update("orbit", false);
   }
 
-  update(mode: CameraMode, locked: boolean): void {
+  /**
+   * @param mode   current camera mode
+   * @param active true while the player is actually driving the lab in
+   *               first-person (pointer locked, or lock unavailable and using
+   *               the drag-to-look fallback) — never tied to a stale lock flag.
+   */
+  update(mode: CameraMode, active: boolean): void {
     const isOrbit = mode === "orbit";
     const isFp = mode === "firstperson";
-    const looking = isFp && locked;
+    const playing = isFp && active;
 
     this.intro.classList.toggle("hidden", !isOrbit);
-    this.paused.classList.toggle("hidden", !(isFp && !locked));
-    this.crosshair.classList.toggle("hidden", !looking);
-    this.hintbar.classList.toggle("hidden", !looking);
+    this.paused.classList.toggle("hidden", !(isFp && !active));
+    this.crosshair.classList.toggle("hidden", !playing);
+    this.hintbar.classList.toggle("hidden", !playing);
   }
 
   private static require(root: HTMLElement, role: string): HTMLElement {

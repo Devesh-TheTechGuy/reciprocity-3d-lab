@@ -22,6 +22,8 @@ export interface CameraRigOptions {
   firstPersonPos?: THREE.Vector3;
   onModeChange?: (mode: CameraMode) => void;
   onLockChange?: (locked: boolean) => void;
+  /** Called when the browser refuses pointer lock (e.g. inside an iframe/embed). */
+  onLockUnavailable?: () => void;
 }
 
 interface Tween {
@@ -38,7 +40,10 @@ const ORBIT_POS = new THREE.Vector3(7.2, 5.4, 8.6);
 const TRANSITION_SECONDS = 1.5;
 const WALK_SPEED = 1.9;
 const RUN_SPEED = 3.8;
+const LOOK_SENSITIVITY = 0.0026;
 const UP = new THREE.Vector3(0, 1, 0);
+const lookEuler = new THREE.Euler(0, 0, 0, "YXZ");
+const HALF_PI = Math.PI / 2;
 
 function easeInOutCubic(t: number): number {
   return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
@@ -66,11 +71,18 @@ export class CameraRig {
   private readonly bounds: WalkBounds;
   private readonly onModeChange?: (mode: CameraMode) => void;
   private readonly onLockChange?: (locked: boolean) => void;
+  private readonly onLockUnavailable?: () => void;
 
   private readonly orbit: OrbitControls;
   private fp: PointerLockControls | null = null;
   private tween: Tween | null = null;
   private readonly keys = new Set<string>();
+
+  /** Drag-to-look fallback, used only when the pointer is not locked. */
+  private lookDrag = false;
+  private readonly dragLast = new THREE.Vector2();
+  /** Host hook: returns true while another tool (the wiring tool) owns the drag. */
+  isOtherDragging: () => boolean = () => false;
 
   constructor(opts: CameraRigOptions) {
     this.camera = opts.camera;
@@ -82,6 +94,7 @@ export class CameraRig {
     this.bounds = opts.bounds;
     this.onModeChange = opts.onModeChange;
     this.onLockChange = opts.onLockChange;
+    this.onLockUnavailable = opts.onLockUnavailable;
 
     this.camera.up.copy(UP);
     this.camera.position.copy(ORBIT_POS);
@@ -97,6 +110,10 @@ export class CameraRig {
 
     window.addEventListener("keydown", this.onKeyDown);
     window.addEventListener("keyup", this.onKeyUp);
+    this.domElement.addEventListener("pointerdown", this.onLookPointerDown);
+    window.addEventListener("pointermove", this.onLookPointerMove);
+    window.addEventListener("pointerup", this.onLookPointerUp);
+    document.addEventListener("pointerlockerror", this.onPointerLockError);
   }
 
   get isLocked(): boolean {
@@ -153,7 +170,14 @@ export class CameraRig {
 
   /** Request pointer lock (call from a user gesture such as a click). */
   requestLook(): void {
-    if (this.mode === "firstperson") this.fp?.lock();
+    if (this.mode !== "firstperson") return;
+    try {
+      this.fp?.lock();
+    } catch {
+      // Pointer lock refused (e.g. inside a sandboxed iframe) — the drag-to-look
+      // fallback already covers this, so just surface it to the host.
+      this.onLockUnavailable?.();
+    }
   }
 
   update(delta: number): void {
@@ -174,6 +198,10 @@ export class CameraRig {
   dispose(): void {
     window.removeEventListener("keydown", this.onKeyDown);
     window.removeEventListener("keyup", this.onKeyUp);
+    this.domElement.removeEventListener("pointerdown", this.onLookPointerDown);
+    window.removeEventListener("pointermove", this.onLookPointerMove);
+    window.removeEventListener("pointerup", this.onLookPointerUp);
+    document.removeEventListener("pointerlockerror", this.onPointerLockError);
     this.releaseFirstPerson();
     this.orbit.dispose();
   }
@@ -211,7 +239,7 @@ export class CameraRig {
 
   private updateWalk(delta: number): void {
     const fp = this.fp;
-    if (!fp || !fp.isLocked) return;
+    if (!fp) return;
 
     let forward = 0;
     let right = 0;
@@ -230,6 +258,44 @@ export class CameraRig {
     fp.moveRight(right * step);
     this.clampToRoom();
   }
+
+  /**
+   * Rotate the first-person camera by a screen-space delta. This is the fallback
+   * look control so the lab is still explorable when pointer lock is unavailable
+   * (e.g. inside an iframe/embed). It is ignored once the pointer is locked,
+   * because then PointerLockControls drives the camera.
+   */
+  lookBy(dx: number, dy: number): void {
+    if (this.isLocked) return;
+    lookEuler.setFromQuaternion(this.camera.quaternion);
+    lookEuler.y -= dx * LOOK_SENSITIVITY;
+    lookEuler.x -= dy * LOOK_SENSITIVITY;
+    lookEuler.x = THREE.MathUtils.clamp(lookEuler.x, -HALF_PI + 0.02, HALF_PI - 0.02);
+    this.camera.quaternion.setFromEuler(lookEuler);
+  }
+
+  private onLookPointerDown = (event: PointerEvent): void => {
+    if (this.mode !== "firstperson" || this.isLocked || event.button !== 0) return;
+    this.lookDrag = true;
+    this.dragLast.set(event.clientX, event.clientY);
+  };
+
+  private onLookPointerMove = (event: PointerEvent): void => {
+    if (!this.lookDrag || this.isLocked) return;
+    const dx = event.clientX - this.dragLast.x;
+    const dy = event.clientY - this.dragLast.y;
+    this.dragLast.set(event.clientX, event.clientY);
+    if (this.isOtherDragging()) return; // e.g. the wiring tool owns this drag
+    this.lookBy(dx, dy);
+  };
+
+  private onLookPointerUp = (): void => {
+    this.lookDrag = false;
+  };
+
+  private onPointerLockError = (): void => {
+    this.onLockUnavailable?.();
+  };
 
   private clampToRoom(): void {
     const p = this.camera.position;

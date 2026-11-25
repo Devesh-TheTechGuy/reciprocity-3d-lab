@@ -43,12 +43,17 @@ const rig = new CameraRig({
   },
   firstPersonPos: new THREE.Vector3(0.42, 1.55, 1.2),
   onModeChange: (mode: CameraMode) => hud?.update(mode, rig.isLocked),
-  onLockChange: () => hud?.update(rig.mode, rig.isLocked),
+  // NOTE: use the value we are handed. PointerLockControls fires 'lock' *before*
+  // it flips `isLocked`, so reading rig.isLocked here would report a stale false.
+  onLockChange: (locked: boolean) => hud?.update(rig.mode, locked),
+  // Pointer lock refused (iframe/embed): keep playing via the drag-to-look fallback.
+  onLockUnavailable: () => hud?.update(rig.mode, true),
 });
 
 hud = new Hud({
   onEnterFirstPerson: () => rig.enterFirstPerson(),
   onExitToOrbit: () => rig.exitToOrbit(),
+  onResume: () => rig.requestLook(),
 });
 
 // Clicking the canvas while in first-person (but unlocked) grabs the pointer.
@@ -68,6 +73,10 @@ const wiringTool = new WiringTool({
   floorY: table.surfaceY,
   isActive: () => rig.mode === "firstperson",
 });
+
+// Drag-to-look must not fight the wiring tool: while a cord is being dragged,
+// the wiring tool owns the gesture.
+rig.isOtherDragging = () => wiringTool.isDragging;
 
 engine.add((delta) => {
   room.update(delta);

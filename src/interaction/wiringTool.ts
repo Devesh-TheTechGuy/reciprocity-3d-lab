@@ -77,6 +77,11 @@ export class WiringTool {
     return this.opts.isActive ? this.opts.isActive() : true;
   }
 
+  /** True while a cord end is being dragged (so other tools can yield the gesture). */
+  get isDragging(): boolean {
+    return this.drag !== null;
+  }
+
   private rayFromEvent(ev: PointerEvent | MouseEvent): THREE.Ray {
     const el = this.opts.domElement;
     if (document.pointerLockElement === el) {
