@@ -5,6 +5,7 @@ import { PostFx } from "./core/postfx";
 import { ROOM, createRoom } from "./scene/room";
 import { createLabTable } from "./scene/labTable";
 import { createLighting } from "./scene/lighting";
+import { Environment } from "./scene/environment";
 import { createLabKit } from "./kit";
 import { WiringState } from "./state/wiring";
 import { WiringTool } from "./interaction/wiringTool";
@@ -35,6 +36,19 @@ const kit = createLabKit(table.surfaceY);
 engine.scene.add(kit.group);
 
 createLighting(engine.scene, ROOM);
+
+// M5 — HDRI environment: a CC0 Poly Haven studio map, PMREM-filtered into
+// `scene.environment` so every MeshStandardMaterial gets diffuse + specular IBL.
+// Loads asynchronously; the flat background is replaced once the map is decoded.
+const environment = new Environment({
+  renderer: engine.renderer,
+  scene: engine.scene,
+  url: "/assets/hdri/studio_small_09_1k.hdr",
+  intensity: 0.45,
+  background: true,
+  backgroundIntensity: 0.28,
+  backgroundBlurriness: 0.7,
+});
 
 // M5 — post-FX: SSAO + bloom, tone-mapped and encoded once by the OutputPass.
 const postfx = new PostFx({
@@ -184,6 +198,7 @@ if (import.meta.env.DEV) {
     engine,
     kit,
     postfx,
+    environment,
     rig,
     table,
     wiring,

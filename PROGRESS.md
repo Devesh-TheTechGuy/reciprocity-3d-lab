@@ -12,15 +12,18 @@
 
 **Done & pushed:** M0 scaffold, M1 room + camera rig, M2 kit + patch cords +
 wiring, the "Paused card never disappears" lock fix (§5), **M3 physics**
-(netlist + MNA solver + live E/V/I readouts — §5b), the **M4 experiment flow**
-(Fig 1(a)→1(b) state machine, Table 1 + verification, runtime resistor swap — §5c),
-and **M5 slice 1: post-FX** (EffectComposer + SSAO + bloom + OutputPass, MSAA
-buffers, lighting/exposure rebalance — §5d).
+(netlist + MNA solver + live E/V/I readouts — §5b), and the **M4 experiment flow**
+(Fig 1(a)→1(b) state machine, Table 1 + verification, runtime resistor swap — §5c).
 
-**Nothing is half-edited.** `npm run build` is green (46 modules).
+**Committed locally, NOT yet pushed:** **M5 slice 1: post-FX** (`cd9cd3f` —
+EffectComposer + SSAO + bloom + OutputPass, MSAA buffers, lighting/exposure
+rebalance — §5d) and **M5 slice 2: HDRI environment** (PMREM IBL from a CC0
+Poly Haven studio map — §5e).
 
-**The very next action:** **M5 slice 2 — HDRI environment** (§6.3), then sound,
-perf pass, touch fallback.
+**Nothing is half-edited.** `npm run build` is green (48 modules).
+
+**The very next action:** **M5 slice 3 — sound cues** (§6.3), then the perf pass
+and the touch fallback; finally `git push` all M5 commits.
 
 ---
 
@@ -35,8 +38,12 @@ perf pass, touch fallback.
 | git user.email | `deveshgopal11@gmail.com` |
 | GitHub CLI auth | `gh` authed as `Devesh-TheTechGuy` (keyring, scopes: repo, gist, read:org, workflow) |
 
-**Commit history (pushed, newest first):**
+**Commit history (newest first).** `origin/main` is at **`4cd0ecb`**; the two M5
+commits above it are **local-only** until pushed:
 ```
+8320dfe M5 slice 2: HDRI environment (HDRLoader + PMREM IBL) + exposure rebalance   [local]
+cd9cd3f M5 slice 1: post-FX (EffectComposer + SSAO + bloom + OutputPass) + lighting rebalance   [local]
+4cd0ecb docs: record M4 (flow + Table 1 + resistor swap) in PROGRESS   [origin/main]
 9f7c33c M4: experiment flow + Table 1 observation table + resistor-value swap
 d7dd265 docs: record M3 commit hash (b1919b0) in PROGRESS
 b1919b0 M3: physics — netlist + MNA solver + live E/V/I readouts
@@ -173,7 +180,11 @@ Remove-Item -LiteralPath 'vite-dev.log','vite-dev.err.log' -Force -ErrorAction S
         buffers, `setEnabled`), `core/engine.ts` gained a `FrameComposer` hook,
         `main.ts` installs it; plus a lighting/exposure rebalance (dimmer point
         lights, brighter tube emissive) so bloom separates from lit surfaces.
-  - [ ] M5 slice 2 — HDRI environment (+ PMREM).
+  - [x] **M5 slice 2 — HDRI environment** (this session): `src/scene/environment.ts`
+        (`Environment` — `HDRLoader` → `PMREMGenerator.fromEquirectangular` →
+        `scene.environment`, plus a blurred `scene.background`), a 1k CC0 Poly
+        Haven studio HDR in `public/assets/hdri/`, and the hemisphere fill trimmed
+        `0.5 → 0.4` to offset the new image-based lighting.
   - [ ] M5 slice 3 — sound cues (synthesized WebAudio).
   - [ ] M5 slice 4 — performance pass.
   - [ ] M5 slice 5 — mobile/touch fallback.
@@ -380,12 +391,58 @@ RenderPass ─► SSAOPass ─► UnrealBloomPass ─► OutputPass ─► scree
 
 ---
 
+## 5e. M5 slice 2 — HDRI environment (PMREM image-based lighting)
+
+- **Asset:** `public/assets/hdri/studio_small_09_1k.hdr` — Poly Haven
+  *Studio Small 09*, **1k HDR (~1.6 MB), CC0** (public domain; no attribution
+  required, credited here anyway). Vite serves `public/` as-is, so the URL is
+  `/assets/hdri/…` in both dev and build (verified `dist/assets/hdri/…` is emitted).
+- **`src/scene/environment.ts`** — `Environment` loads the equirect map with
+  **`HDRLoader`** (⚠️ *not* `RGBELoader`: r187 deprecated it and logs a console
+  warning — `HDRLoader` is the drop-in `DataTextureLoader` replacement), then
+  pre-filters it with `PMREMGenerator.fromEquirectangular()` and assigns
+  `scene.environment`. The source texture and the generator are disposed
+  immediately; the returned `WebGLRenderTarget` is kept alive because its `.texture`
+  is what the materials sample. Exposes `texture`, `setIntensity(v)`, `dispose()`.
+- **Why IBL / why PMREM:** until now every lit surface was shaded only by the
+  hemisphere + sun + fixture points, so metalness-heavy parts (brass binding posts,
+  gold trim, glass) had nothing to *reflect* and read flat. The PMREM cube-UV map
+  gives every `MeshStandardMaterial` a diffuse + specular radiance term — that is
+  what makes the brass/glass/board read as real materials, with §5d's SSAO/bloom
+  sitting on top. The analytic lights stay for direct light + the shadows.
+- **Async, non-blocking:** the load is fire-and-forget, so the app renders
+  immediately under the analytic lights and simply *gains* the environment a moment
+  later (no loading gate). A failure is non-fatal (`console.warn`, flat background).
+- **Background:** the same map becomes the skybox with `backgroundBlurriness 0.7` /
+  `backgroundIntensity 0.28`, so orbiting out of the room sees a soft neutral studio
+  backdrop rather than flat `0x0e1116`. (The room's own "windows" are flat emissive
+  panels from M1, so the background is only visible from *outside* the room.)
+- **Exposure re-check — it *was* needed:** measured over a fixed orbit view, the
+  environment alone lifted average luminance ≈ **+39 %** (86 → 119), because a studio
+  HDR adds a lot of general bounce. Compensated by trimming the now-partly redundant
+  hemisphere fill `0.5 → 0.4` and settling at `environmentIntensity 0.45` → final
+  **148** vs **153** for the untuned 0.5/0.5 combo. Net effect: the slice-1 look is
+  preserved while materials gained their reflections. Sun (`1.7`) and tube emissive
+  (`3.4`) are unchanged.
+- **Verified (headless):** `npx tsc --noEmit` = 0; `npm run build` = 0 (48 modules);
+  console **0 errors / 0 warnings** (the `RGBELoader` deprecation warning is gone
+  after switching to `HDRLoader`). Confirmed live via the dev hook:
+  `lab.environment.texture.isTexture === true`, `scene.environmentIntensity === 0.45`,
+  `scene.background` is the HDRI texture. Screenshots: `m5s2-env-default.png`,
+  `m5s2-env-scene.png` (env on), `m5s2-env-off.png` (`setIntensity(0)` A/B),
+  `m5s2-env-orbit-clean.png` (UI hidden), `m5s2-env-kit-final.png`,
+  `m5s2-env-orbit-final.png`.
+
+---
+
 ## 6. What I was doing / about to do
 
 ### 6.1 Already done this session
 `npm run build` (green) → committed the lock fix + `PROGRESS.md` as `74fda29` and
 pushed → implemented + verified M3 (§4/§5b) and pushed → implemented + verified
-**M4** (§4/§5c) as `9f7c33c`, then updated this file.
+**M4** (§4/§5c) as `9f7c33c`, then updated this file → **M5 slice 1** (post-FX,
+§5d) committed locally as `cd9cd3f` (not pushed) → **M5 slice 2** (HDRI
+environment, §5e) implemented + verified and staged for its own commit.
 
 ### 6.2 M4 — done (as implemented)
 The flow + table shipped exactly as described in §4/§5c: `ExperimentFlow` keyed off
@@ -396,10 +453,10 @@ from `main.ts`'s `refreshReadings()`.
 ### 6.3 Next: M5 — polish, and the deferred items
 - **M5 slice 1 (post-FX) — DONE this session** (see §5d): EffectComposer +
   SSAO + bloom + OutputPass, MSAA buffers, lighting/exposure rebalance.
-- **M5 slice 2 (next): HDRI environment** — fetch a 1–2k Poly Haven HDR into
-  `public/assets/`, set `scene.environment` via `PMREMGenerator`, and probably
-  `scene.background`; re-check exposure after.
-- **M5 slice 3:** sound cues (synthesized WebAudio: plug/unplug, meter tick, switch).
+- **M5 slice 2 (HDRI environment) — DONE this session** (see §5e): `Environment` +
+  `HDRLoader` → PMREM IBL, 1k CC0 Poly Haven studio map in `public/assets/hdri/`,
+  blurred `scene.background`, hemisphere `0.5 → 0.4`, `environmentIntensity 0.45`.
+- **M5 slice 3 (next):** sound cues (synthesized WebAudio: plug/unplug, meter tick, switch).
 - **M5 slice 4:** performance pass (profile; consider DPR cap, AO/bloom toggles,
   MSAA `samples`, shadow map size).
 - **M5 slice 5:** mobile/touch fallback.
@@ -464,10 +521,17 @@ T2 (rail) ────────  T5 ────────  T4 (rail)     �
 
 ## 10. Dev hooks & QA recipes
 Dev builds expose
-`window.lab = { engine, kit, postfx, rig, table, wiring, wiringTool, circuit,
-solveCircuit, theoreticalCurrent, refreshReadings, flow, observations,
+`window.lab = { engine, kit, postfx, environment, rig, table, wiring, wiringTool,
+circuit, solveCircuit, theoreticalCurrent, refreshReadings, flow, observations,
 setResistors, recordObservation }` (stripped from production by
 `import.meta.env.DEV`). Useful calls:
+- **environment (M5/§5e):** `lab.environment.texture` (null until the HDR decodes),
+  `lab.environment.setIntensity(v)` → `scene.environmentIntensity`, and
+  `lab.engine.scene.backgroundIntensity` / `backgroundBlurriness` for the skybox.
+  A/B a look by `setIntensity(0)` vs `setIntensity(0.45)`; the hemisphere fill is
+  `lab.engine.scene.children.find(o => o.isHemisphereLight).intensity`.
+- **post-FX (§5d):** `lab.postfx.setEnabled(false)` to A/B the whole composer;
+  `lab.postfx.ssao.enabled` / `lab.postfx.bloom.enabled` to isolate one pass.
 - `lab.kit.terminalsById['T1'].worldPosition()`, `lab.wiring.list()`, `lab.wiring.detectConfig()`
 - **physics:** `lab.solveCircuit(lab.wiring, lab.circuit)` → `{ config, nodeVoltage,
   voltage, current, sourceCurrent }`; `lab.theoreticalCurrent(lab.circuit)`;
@@ -501,6 +565,17 @@ In `C:\Users\Devesh Gupta\AppData\Local\Programs\Microsoft VS Code\.playwright-m
 `m3-readout-panel.png` (the new Circuit readout panel for Fig 1(a): 6.000 V / 20.00 mA),
 `m4-observation-table.png` (full viewport with all four M4 panels) and
 `m4-table-revealed.png` (Table 1 with the Theory column revealed, rows green, verified).
+
+**M5 slice 1 (post-FX):** `m5-postfx-kit-on.png` / `m5-postfx-kit-off.png` (A/B),
+`m5-postfx-ssao-only.png`, `m5-lit-board.png`, `m5-lit-ceiling.png`,
+`m5-lit-spawn.png`, `m5-lit-overview.png`, `m5-lit-resized.png`.
+
+**M5 slice 2 (HDRI environment):** `m5s2-env-default.png` (intro overlay, HDRI bg
+already applied), `m5s2-env-scene.png` (first-person kit, env on),
+`m5s2-env-off.png` (same view, `setIntensity(0)` — the A/B), `m5s2-env-orbit-clean.png`
+(orbit, UI hidden — the luminance-comparison frame), `m5s2-env-kit-final.png`
+(tuned: warmer brass sheen, board not blown) and `m5s2-env-orbit-final.png`
+(tuned orbit; the soft studio backdrop).
 
 ## 12. Open decisions / risks
 - **Physics values — RESOLVED in M4:** the two-place duplication is gone.

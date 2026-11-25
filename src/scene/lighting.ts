@@ -20,7 +20,10 @@ export interface Lighting {
  * the interior instead of being blocked by the shell geometry.
  */
 export function createLighting(scene: THREE.Scene, room: RoomSize): Lighting {
-  const hemisphere = new THREE.HemisphereLight(0xfff4e2, 0x6b4a2b, 0.5);
+  // Hemisphere is the analytic "ambient" fill; the PMREM environment (§5e) now
+  // supplies most of the sky/ground bounce, so this is trimmed to keep the
+  // interior from double-filling.
+  const hemisphere = new THREE.HemisphereLight(0xfff4e2, 0x6b4a2b, 0.4);
   scene.add(hemisphere);
 
   const sun = new THREE.DirectionalLight(0xfff0d0, 1.7);
