@@ -11,13 +11,14 @@
 *"To Verify the Reciprocity Theorem"* (Vite + TypeScript + three.js r187).
 
 **Done & pushed:** M0 scaffold, M1 room + camera rig, M2 kit + patch cords +
-wiring, the "Paused card never disappears" lock fix (§5), and **M3 physics**
-(netlist + MNA solver + live E/V/I readouts — §5b).
+wiring, the "Paused card never disappears" lock fix (§5), **M3 physics**
+(netlist + MNA solver + live E/V/I readouts — §5b), and **M4 experiment flow**
+(Fig 1(a)→1(b) state machine, Table 1 + verification, runtime resistor swap — §5c).
 
-**Nothing is half-edited.** `npm run build` is green (29 modules).
+**Nothing is half-edited.** `npm run build` is green (32 modules).
 
-**The very next action:** start **M4** (§6.2) — the Fig 1(a)→1(b) experiment
-flow, the observation table and the verification step.
+**The very next action:** start **M5** (§6.3) — polish: HDRI, post-FX, sound,
+perf pass.
 
 ---
 
@@ -34,6 +35,8 @@ flow, the observation table and the verification step.
 
 **Commit history (pushed, newest first):**
 ```
+9f7c33c M4: experiment flow + Table 1 observation table + resistor-value swap
+d7dd265 docs: record M3 commit hash (b1919b0) in PROGRESS
 b1919b0 M3: physics — netlist + MNA solver + live E/V/I readouts
 74fda29 Fix: Paused card stuck on lock (three r187 lock-event order) + drag-to-look fallback
 7ebb710 Keep LICENSE from the initial remote repo
@@ -145,8 +148,24 @@ Remove-Item -LiteralPath 'vite-dev.log','vite-dev.err.log' -Force -ErrorAction S
   - `src/main.ts` — `refreshReadings()` runs on `wiring.onChange` and drives
     `supply.setVoltage`, `voltmeter.setReading`, `milliammeter.setReading`; the
     physics API is exposed on `window.lab` for QA.
-- [ ] **M4 experiment flow** (next) — Fig 1(a)→1(b) state machine, observation table, verify.
-- [ ] **M5 polish** — HDRI, post-FX, sound, perf pass.
+- [x] **M4 experiment flow** — Fig 1(a)→1(b) state machine, Table 1 + verification,
+      runtime resistor swap:
+  - `src/experiment/components.ts` — single source of truth for component values:
+    `STANDARD_RESISTOR_OHMS`, `ResistorSet`, `DEFAULT_RESISTOR_SET`, `formatOhms`,
+    `resistorSignature`. Both the kit board and `physics` now derive from it.
+  - `src/experiment/flow.ts` — `ExperimentFlow` state machine (procedure steps 1–5).
+    Rows are keyed by `(EMF, resistor set)`, so *changing R1–R3 and repeating* opens
+    a new row; `record("A"|"B")` snapshots the reading; `verdict` compares the pair.
+  - `src/ui/observationTable.ts` — apparatus R1/R2/R3 `<select>`s + the on-screen
+    Table 1 (`S.No | E | I_A | I_B`), a verdict footer and a **Reveal theory** toggle.
+  - `src/kit/resistor.ts` / `kitBase.ts` / `index.ts` — resistor units now return a
+    `setValue()` hook and `KitBase.setResistors(ResistorSet)` repaints the nameplates
+    **in place** (terminals, cords and the wiring graph are untouched → no re-wiring).
+  - `src/physics/netlist.ts` — `DEFAULT_CIRCUIT` derives its r1/r2/r3 from
+    `DEFAULT_RESISTOR_SET` (the two-place duplication is gone).
+  - `src/ui/hud.ts` (`setPrompt`), `src/main.ts` (flow + table wiring, dev hooks),
+    `src/style.css` (`.ui-prompt`, `.ui-apparatus`, `.ui-observations`).
+- [ ] **M5 polish** (next) — HDRI, post-FX, sound, perf pass.
 
 **Verified for M3 (this session):** `npx tsc --noEmit` clean; `npm run build`
 clean (29 modules). With the dev-only `window.lab` hook, driving `wiring.add(...)`
@@ -165,6 +184,22 @@ and re-solving gave (all values redisplayed live in the HUD panel):
 balanced and the asymmetric network — reciprocity confirmed numerically. An
 incomplete circuit (source only, no meters) returns `config = null`, 0 mA and does
 **not** throw. Console: 0 errors / 0 warnings.
+
+**Verified for M4 (this session):** `npx tsc --noEmit` clean; `npm run build` clean
+(32 modules); console **0 errors / 0 warnings**. Driving the flow through the
+dev-only `window.lab` hook (`recordObservation`, `setResistors`) produced:
+
+| scenario | result |
+| --- | --- |
+| nothing wired, `recordObservation("A")` | returns **false** (blocked) |
+| Fig 1(a) → record I_A; Fig 1(b) → record I_B (R=100, E=6) | row 1 = **20.00 / 20.00 mA**, theory 20.00 → **verified** |
+| R={110,330,220}, E=9, repeat (step 5) | row 2 = **14.876 / 14.876 mA**, theory 14.876 → **verified** |
+| change E to 12 *after* recording I_A, then record I_B | I_B lands in a **separate** row → **not** verified (guard works) |
+
+→ the flow marks `verified` only when I_A and I_B share the same (EMF, R-set)
+condition, and the on-screen Table 1 shows both rows green with a
+"I_A = I_B — reciprocity verified" footer. The `Reveal theory` toggle fills the
+`Theory` column (= `E·R3/(R1R2+R2R3+R1R3)`) without a re-render.
 
 **Verified for M2 (earlier in this session):** `tsc` clean; `npm run build` clean
 (26 modules, ~601 kB / ~151 kB gzip); console 0 errors/0 warnings; 12 terminals
@@ -256,32 +291,53 @@ T2 ───────── T5 ───────── T4   Patch cords: 
 
 ---
 
+## 5c. M4 experiment flow — how the verification is modelled
+
+```
+wire Fig 1(a) ──► record I_A ──┐
+                               ├── same (EMF, R-set)? ──► verified (I_A = I_B)
+wire Fig 1(b) ──► record I_B ──┘
+```
+
+- **One source of truth for values:** `experiment/components.ts` owns the resistor
+  numbers. `kitBase` silk-screens them (`formatOhms`) and `physics/netlist` derives
+  `DEFAULT_CIRCUIT.r1/r2/r3` from the same `DEFAULT_RESISTOR_SET`, so the displayed
+  value and the solved value can never drift (this closes PROGRESS §12's old risk).
+- **Rows keyed by `(EMF, resistor set)`:** `ExperimentFlow.record("A"|"B")` snapshots
+  `solution.current` into the row for the *current* condition. Procedure **step 5**
+  ("change R1–R3 and repeat") is therefore automatic: a new R-set simply opens a new
+  row, and I_A/I_B are only ever compared *within* one condition.
+- **The guard:** if EMF or the resistor set changes between recording I_A and I_B,
+  the two readings fall into different rows → the row never completes → it is **not**
+  reported verified. This is what keeps a sloppy A/B pair from fooling the verdict.
+- **Tolerance:** two readings match when `|I_A − I_B| ≤ max(0.02 mA, 0.5 %·I)`.
+- **Resistor swap is in-place:** `KitBase.setResistors()` repaints the three resistor
+  nameplates; the terminal objects, cords and the live wiring graph are untouched, so
+  no re-wiring happens when the student changes a value.
+- **Caveat:** `flow` requires only that E and mA match the figure; it *prompts* for the
+  voltmeter but does not block recording on it (reciprocity needs only E and I).
+
+---
+
 ## 6. What I was doing / about to do
 
 ### 6.1 Already done this session
 `npm run build` (green) → committed the lock fix + `PROGRESS.md` as `74fda29` and
-pushed → stopped the dev server + deleted `vite-dev*.log` → implemented M3
-(§4/§5b), verified it end-to-end (§4), then committed + pushed.
+pushed → implemented + verified M3 (§4/§5b) and pushed → implemented + verified
+**M4** (§4/§5c) as `9f7c33c`, then updated this file.
 
-### 6.2 Next: M4 — the experiment flow (state machine + observation table)
-Goal: walk the student through Fig 1(a) → Fig 1(b) and *prove* reciprocity.
-1. `src/experiment/flow.ts` — a small state machine keyed off `wiring.detectConfig()`
-   (`idle → figA-wired → record-A → figB-wired → record-B → verified`), with a
-   check that the source EMF is held constant between the two readings.
-2. `src/ui/observationTable.ts` — on-screen table (Obs., EMF E, Ammeter I, and an
-   `I_A = I_B?` verdict), an "add observation" button, and a **Reveal / theory**
-   toggle that shows `I = E·R3/(R1R2+R2R3+R1R3)` next to the measured value.
-3. Wire it into `main.ts`: subscribe to `wiring.onChange` (already there), snapshot
-   `solveCircuit(...)` when a valid config is wired, and block "record" until
-   `solution.config` is non-null.
-4. Optional: let the student turn the supply knob (already has `setVoltage`) and
-   re-solve, so `E` can be varied and the table can hold several rows.
-5. Acceptance: with E=6 V, R=100 Ω the table fills 20.00 mA for both (a) and (b)
-   and prints "verified"; changing E scales both rows identically.
+### 6.2 M4 — done (as implemented)
+The flow + table shipped exactly as described in §4/§5c: `ExperimentFlow` keyed off
+`wiring.detectConfig()` + `(EMF, R-set)`, the Table 1 UI with a verdict footer and a
+`Reveal theory` toggle, in-place resistor swap via `KitBase.setResistors`, all driven
+from `main.ts`'s `refreshReadings()`.
 
-### 6.3 Deferred / nice-to-have
-- Add `reciprocity-3d-lab/` to the **outer** repo's `.gitignore` (nested-repo noise).
-- M5 polish: HDRI, post-FX, sound, perf pass.
+### 6.3 Next: M5 — polish, and the deferred items
+- **M5 polish:** HDRI environment, post-FX, sound, perf pass.
+- **Deferred:** add `reciprocity-3d-lab/` to the **outer** repo's `.gitignore`
+  (nested-repo noise) — not done (would touch a different repo).
+- **Optional realism:** give the meters a burden resistance (ammeter ≈1 Ω, voltmeter
+  ≈10 MΩ) instead of the current ideal 0 Ω / open model.
 
 ---
 
@@ -340,12 +396,18 @@ T2 (rail) ────────  T5 ────────  T4 (rail)     �
 ## 10. Dev hooks & QA recipes
 Dev builds expose
 `window.lab = { engine, kit, rig, table, wiring, wiringTool, circuit, solveCircuit,
-theoreticalCurrent, refreshReadings }` (stripped from production by
-`import.meta.env.DEV`). Useful calls:
+theoreticalCurrent, refreshReadings, flow, observations, setResistors,
+recordObservation }` (stripped from production by `import.meta.env.DEV`). Useful calls:
 - `lab.kit.terminalsById['T1'].worldPosition()`, `lab.wiring.list()`, `lab.wiring.detectConfig()`
 - **physics:** `lab.solveCircuit(lab.wiring, lab.circuit)` → `{ config, nodeVoltage,
   voltage, current, sourceCurrent }`; `lab.theoreticalCurrent(lab.circuit)`;
   mutate `lab.circuit.E/r1/r2/r3` then `lab.refreshReadings()`.
+- **flow / table (M4):** `lab.flow.update(lab.solveCircuit(lab.wiring, lab.circuit),
+  lab.circuit)` → `{ state, prompt, canRecordA, canRecordB, rows, verdict }`;
+  `lab.recordObservation("A"|"B")`; `lab.setResistors({ r1, r2, r3 })` (also repaints
+  the board). Full headless verify:
+  `wireA → recordObservation("A") → wireB → recordObservation("B")` → row shows
+  20.00 / 20.00 mA and `verdict === "verified"`.
 - **Fast Fig-1(a) wiring without dragging:** `lab.wiring.clear()` then
   `lab.wiring.add("E+","T1"); lab.wiring.add("E-","T2"); lab.wiring.add("V+","T1");
   lab.wiring.add("V-","T2"); lab.wiring.add("mA+","T3"); lab.wiring.add("mA-","T4")`
@@ -366,13 +428,16 @@ theoreticalCurrent, refreshReadings }` (stripped from production by
 In `C:\Users\Devesh Gupta\AppData\Local\Programs\Microsoft VS Code\.playwright-mcp\`:
 `m2-overview.png`, `m2-fp-1.png`, `m2-fp-2.png`, `m2-kit-closeup.png`, `m2-kit-top.png`,
 `m2-kit-top-2.png`, `m2-cords-figA.png`, `m2-final-spawn.png`,
-`m3-readout-panel.png` (the new Circuit readout panel for Fig 1(a): 6.000 V / 20.00 mA).
+`m3-readout-panel.png` (the new Circuit readout panel for Fig 1(a): 6.000 V / 20.00 mA),
+`m4-observation-table.png` (full viewport with all four M4 panels) and
+`m4-table-revealed.png` (Table 1 with the Theory column revealed, rows green, verified).
 
 ## 12. Open decisions / risks
-- **Physics values must stay in sync:** `physics.DEFAULT_CIRCUIT` (numeric Ω) mirrors
-  `kitBase.DEFAULT_RESISTORS` (the `"100 Ω"` silk-screen strings). If M4 lets the
-  student swap resistors, update *both* (`createLabKit(surfaceY, values)` already
-  takes the display strings).
+- **Physics values — RESOLVED in M4:** the two-place duplication is gone.
+  `src/experiment/components.ts` is the single source (`DEFAULT_RESISTOR_SET`);
+  `physics.DEFAULT_CIRCUIT` and the kit board both derive from it, and the runtime
+  resistor swap keeps the board and the solver in lock-step via
+  `KitBase.setResistors` + `circuit.r1/r2/r3`.
 - `solveCircuit` treats the milliammeter as an **ideal 0 Ω** branch and the voltmeter
   as **open** — no meter burden resistance. Fine for this experiment; if realism is
   wanted later, give the ammeter e.g. 1 Ω and the voltmeter e.g. 10 MΩ.
