@@ -31,11 +31,15 @@ export class Hud {
   private readonly paused: HTMLElement;
   private readonly crosshair: HTMLElement;
   private readonly hintbar: HTMLElement;
+  private readonly hintTouch: HTMLElement;
   private readonly readout: HTMLElement;
   private readonly prompt: HTMLElement;
   private readonly readoutFields: Record<keyof ReadoutView, HTMLElement>;
+  /** True on touch-first devices: swaps the copy and hides the crosshair. */
+  private readonly touch: boolean;
 
-  constructor(callbacks: HudCallbacks) {
+  constructor(callbacks: HudCallbacks, options: { touch?: boolean } = {}) {
+    this.touch = options.touch ?? false;
     const root = document.createElement("div");
     root.className = "ui";
 
@@ -52,13 +56,13 @@ export class Hud {
           <strong>I&#8202;<sub>A</sub> = I&#8202;<sub>B</sub></strong>: swapping the source
           and the ammeter between two branches leaves the ammeter reading unchanged.
         </p>
-        <p class="ui-note">Drag to orbit &middot; scroll to zoom</p>
+        <p class="ui-note" data-role="intro-note">Drag to orbit &middot; scroll to zoom</p>
         <button type="button" data-action="enter">Enter the lab (first-person)</button>
       </div>
 
       <div class="ui-card ui-card--small" data-role="paused">
         <h2>Paused</h2>
-        <p>Click anywhere in the lab (or here) to look around.</p>
+        <p data-role="paused-copy">Click anywhere in the lab (or here) to look around.</p>
         <button type="button" data-action="exit">Back to overview</button>
       </div>
 
@@ -69,6 +73,10 @@ export class Hud {
         &nbsp;&middot;&nbsp; <span>drag</span> to look
         &nbsp;&middot;&nbsp; <span>Left-click</span> patch a cord
         &nbsp;&middot;&nbsp; <span>Right-click</span> unplug
+      </div>
+      <div class="ui-hintbar" data-role="hint-touch">
+        <span>drag</span> to look &nbsp;&middot;&nbsp; <span>drag a cord between terminals</span>
+        &nbsp;&middot;&nbsp; <span>hold a terminal</span> to unplug
       </div>
 
       <div class="ui-readout" data-role="readout">
@@ -87,8 +95,17 @@ export class Hud {
     this.paused = Hud.require(root, "paused");
     this.crosshair = Hud.require(root, "crosshair");
     this.hintbar = Hud.require(root, "hint");
+    this.hintTouch = Hud.require(root, "hint-touch");
     this.readout = Hud.require(root, "readout");
     this.prompt = Hud.require(root, "prompt");
+
+    // Touch devices have no keyboard and no secondary mouse button.
+    if (this.touch) {
+      Hud.require(root, "intro-note").textContent = "Drag to orbit \u00b7 pinch to zoom";
+      Hud.require(root, "paused-copy").textContent =
+        "Tap anywhere in the lab (or here) to look around.";
+    }
+
     this.readoutFields = {
       config: Hud.field(this.readout, "config"),
       emf: Hud.field(this.readout, "emf"),
@@ -124,8 +141,11 @@ export class Hud {
 
     this.intro.classList.toggle("hidden", !isOrbit);
     this.paused.classList.toggle("hidden", !(isFp && !active));
-    this.crosshair.classList.toggle("hidden", !playing);
-    this.hintbar.classList.toggle("hidden", !playing);
+    // On touch the crosshair would lie — the pick ray follows the finger, not
+    // the screen centre — so only the desktop first-person view gets one.
+    this.crosshair.classList.toggle("hidden", !playing || this.touch);
+    this.hintbar.classList.toggle("hidden", !playing || this.touch);
+    this.hintTouch.classList.toggle("hidden", !playing || !this.touch);
   }
 
   /** Show the next step of the experiment (e.g. "rewire as Fig 1(b)"). */

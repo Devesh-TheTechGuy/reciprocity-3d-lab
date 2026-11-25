@@ -5,6 +5,10 @@ import type { WiringState } from "../state/wiring";
 
 const GRAB_RADIUS = 0.1;
 const SNAP_RADIUS = 0.17;
+/** Hold a plugged terminal this long (touch only) to unplug it. */
+const LONG_PRESS_MS = 450;
+/** Finger travel that turns a long-press-candidate into an ordinary drag. */
+const LONG_PRESS_SLOP = 12;
 
 export interface WiringToolOptions {
   camera: THREE.Camera;
@@ -45,6 +49,8 @@ export class WiringTool {
   private readonly v2 = new THREE.Vector3();
   private hovered: Terminal | null = null;
   private drag: DragState | null = null;
+  /** Pending touch long-press: unplug the cord on a terminal when it fires. */
+  private longPress: { timer: number; x: number; y: number } | null = null;
   private colorIndex = 0;
   private readonly palette = [0xd23b3b, 0x17171a, 0xd23b3b, 0x17171a, 0x2f6fd0, 0x17171a];
 
@@ -138,7 +144,66 @@ export class WiringTool {
     return c;
   }
 
+  /** The cord whose end is plugged into `terminalId`, if any. */
+  private cordAt(terminalId: string): PatchCord | undefined {
+    return this.cords.find((c) => c.plugged.a === terminalId || c.plugged.b === terminalId);
+  }
+
+  /**
+   * Unplug the cord sitting on `terminal` and drop the connection it carried.
+   * Shared by right-click (desktop) and long-press (touch, which has no
+   * secondary button). Returns false when nothing was plugged in there.
+   */
+  private unplugAt(terminal: Terminal): boolean {
+    const cord = this.cordAt(terminal.id);
+    if (!cord) return false;
+
+    const side: CordSide = cord.plugged.a === terminal.id ? "a" : "b";
+    const other = cord.plugged[side === "a" ? "b" : "a"];
+    cord.unpinEnd(side);
+    if (other) {
+      const conn = this.opts.wiring.find(terminal.id, other);
+      if (conn) this.opts.wiring.remove(conn.id);
+    }
+    this.opts.onDisconnect?.(terminal.id);
+    if (!cord.plugged.a && !cord.plugged.b) this.removeCord(cord);
+    return true;
+  }
+
+  /**
+   * Arm the touch long-press for `terminal`. The touch already started a
+   * tentative cord drag; if the finger holds still the drag is rolled back and
+   * the existing cord is unplugged instead. Moving past {@link LONG_PRESS_SLOP}
+   * cancels it, so ordinary dragging is untouched.
+   */
+  private armLongPress(terminal: Terminal, ev: PointerEvent): void {
+    this.cancelLongPress();
+    const timer = window.setTimeout(() => {
+      this.longPress = null;
+      const drag = this.drag;
+      if (drag && drag.isNew) {
+        // That tentative cord never happened — the gesture was "unplug".
+        this.drag = null;
+        this.removeCord(drag.cord);
+      }
+      this.unplugAt(terminal);
+      this.setHovered(null);
+    }, LONG_PRESS_MS);
+    this.longPress = { timer, x: ev.clientX, y: ev.clientY };
+  }
+
+  private cancelLongPress(): void {
+    if (!this.longPress) return;
+    window.clearTimeout(this.longPress.timer);
+    this.longPress = null;
+  }
+
   private onPointerMove = (ev: PointerEvent): void => {
+    if (this.longPress) {
+      const dx = ev.clientX - this.longPress.x;
+      const dy = ev.clientY - this.longPress.y;
+      if (dx * dx + dy * dy > LONG_PRESS_SLOP * LONG_PRESS_SLOP) this.cancelLongPress();
+    }
     if (!this.isActive()) {
       this.setHovered(null);
       return;
@@ -170,17 +235,7 @@ export class WiringTool {
       const hit = this.nearestTerminal(ray, GRAB_RADIUS);
       if (!hit) return;
       ev.preventDefault();
-      const cord = this.cords.find((c) => c.plugged.a === hit.id || c.plugged.b === hit.id);
-      if (!cord) return;
-      const side: CordSide = cord.plugged.a === hit.id ? "a" : "b";
-      const other = cord.plugged[side === "a" ? "b" : "a"];
-      cord.unpinEnd(side);
-      if (other) {
-        const conn = this.opts.wiring.find(hit.id, other);
-        if (conn) this.opts.wiring.remove(conn.id);
-      }
-      this.opts.onDisconnect?.(hit.id);
-      if (!cord.plugged.a && !cord.plugged.b) this.removeCord(cord);
+      this.unplugAt(hit);
       return;
     }
 
@@ -189,6 +244,9 @@ export class WiringTool {
     const hit = this.nearestTerminal(ray, GRAB_RADIUS);
     if (!hit) return;
     ev.preventDefault();
+    // Touch has no secondary button, so a hold on an already-plugged terminal
+    // means "unplug". Note this before the tentative cord is created.
+    const hadCord = this.cordAt(hit.id) !== undefined;
     const start = hit.worldPosition(new THREE.Vector3());
     const newCord = createPatchCord(this.nextColor(), this.opts.floorY);
     this.group.add(newCord.object);
@@ -196,9 +254,11 @@ export class WiringTool {
     newCord.pinEnd("b", start.clone().add(new THREE.Vector3(0.16, 0.1, 0.08)), null);
     this.cords.push(newCord);
     this.drag = { cord: newCord, side: "b", otherTerminal: hit.id, isNew: true };
+    if (hadCord && ev.pointerType !== "mouse") this.armLongPress(hit, ev);
   };
 
   private onPointerUp = (ev: PointerEvent): void => {
+    this.cancelLongPress();
     const drag = this.drag;
     if (!drag) return;
     this.drag = null;
@@ -230,6 +290,7 @@ export class WiringTool {
   }
 
   dispose(): void {
+    this.cancelLongPress();
     this.opts.domElement.removeEventListener("pointermove", this.onPointerMove);
     this.opts.domElement.removeEventListener("pointerdown", this.onPointerDown);
     this.opts.domElement.removeEventListener("contextmenu", this.onContextMenu);

@@ -15,6 +15,7 @@ import { Hud, type ReadoutView } from "./ui/hud";
 import { ObservationTable } from "./ui/observationTable";
 import { Schematic } from "./ui/schematic";
 import { PerfPanel } from "./ui/perfPanel";
+import { TouchPad } from "./ui/touchPad";
 import { Sfx } from "./audio/sfx";
 import { ExperimentFlow } from "./experiment/flow";
 import type { ResistorSet } from "./experiment/components";
@@ -27,6 +28,13 @@ import {
 
 const container = document.querySelector<HTMLDivElement>("#app");
 if (!container) throw new Error("#app container not found");
+
+/**
+ * M5 slice 5 — the primary input is a finger. Touch devices get the on-screen
+ * walk pad, bigger hit targets, the phone layout, and start one quality rung
+ * lower (the governor still adapts from there).
+ */
+const COARSE_POINTER = window.matchMedia("(pointer: coarse)").matches;
 
 const engine = new Engine(container);
 
@@ -78,7 +86,7 @@ const qualityTargets: QualityTargets = {
   setPasses: (passes) => postfx.setPasses(passes),
 };
 
-const perf = new PerfGovernor(qualityTargets);
+const perf = new PerfGovernor(qualityTargets, { initialTier: COARSE_POINTER ? "medium" : "high" });
 const perfPanel = new PerfPanel({ onMode: (mode) => perf.setMode(mode) });
 perf.onChange(() => perfPanel.update(perf.fps, perf.qualityMode, perf.tierName));
 perfPanel.update(perf.fps, perf.qualityMode, perf.tierName);
@@ -90,6 +98,26 @@ const focus = new THREE.Vector3(0, table.surfaceY + 0.08, -0.04);
 const sfx = new Sfx();
 
 let hud: Hud | undefined;
+let touchPad: TouchPad | undefined;
+
+/**
+ * Keep every screen overlay in step with the camera mode. The touch pad only
+ * appears while actually walking, so the mode/activity plumbing is shared.
+ */
+const syncUi = (mode: CameraMode, active: boolean): void => {
+  hud?.update(mode, active);
+  touchPad?.update(mode, active, COARSE_POINTER);
+  // Phone layout hook: while walking, secondary panels get out of the way.
+  document.documentElement.classList.toggle("ui-fp", mode === "firstperson");
+};
+
+/**
+ * "Playing" means the lab is live: either the pointer is locked, or we are on a
+ * touch device where lock never arrives and drag-to-look is the control. Never
+ * derived from a stale lock flag.
+ */
+const isActive = (locked: boolean): boolean => COARSE_POINTER || locked;
+
 const rig = new CameraRig({
   camera: engine.camera,
   domElement: engine.canvas,
@@ -102,22 +130,32 @@ const rig = new CameraRig({
     eyeHeight: 1.55,
   },
   firstPersonPos: new THREE.Vector3(0.42, 1.55, 1.2),
-  onModeChange: (mode: CameraMode) => hud?.update(mode, rig.isLocked),
+  onModeChange: (mode: CameraMode) => syncUi(mode, isActive(rig.isLocked)),
   // NOTE: use the value we are handed. PointerLockControls fires 'lock' *before*
   // it flips `isLocked`, so reading rig.isLocked here would report a stale false.
-  onLockChange: (locked: boolean) => hud?.update(rig.mode, locked),
+  onLockChange: (locked: boolean) => syncUi(rig.mode, isActive(locked)),
   // Pointer lock refused (iframe/embed): keep playing via the drag-to-look fallback.
-  onLockUnavailable: () => hud?.update(rig.mode, true),
+  onLockUnavailable: () => syncUi(rig.mode, true),
 });
 
-hud = new Hud({
-  onEnterFirstPerson: () => {
-    // The click that enters the lab is the user gesture that unlocks audio.
-    sfx.resume();
-    rig.enterFirstPerson();
+hud = new Hud(
+  {
+    onEnterFirstPerson: () => {
+      // The click that enters the lab is the user gesture that unlocks audio.
+      sfx.resume();
+      rig.enterFirstPerson();
+    },
+    onExitToOrbit: () => rig.exitToOrbit(),
+    onResume: () => rig.requestLook(),
   },
-  onExitToOrbit: () => rig.exitToOrbit(),
-  onResume: () => rig.requestLook(),
+  { touch: COARSE_POINTER },
+);
+
+// M5 slice 5 — the on-screen walk pad: a phone has no WASD, and (since the
+// touch fallback never opens the paused card) this is also its way back out.
+touchPad = new TouchPad({
+  onMove: (forward, right) => rig.setMoveInput(forward, right),
+  onExit: () => rig.exitToOrbit(),
 });
 
 // Clicking the canvas while in first-person (but unlocked) grabs the pointer.
@@ -171,6 +209,8 @@ const observations = new ObservationTable({
 
 // M5 — live 2D wiring schematic on the side, mirroring the physical kit.
 const schematic = new Schematic();
+// On a phone the panel would eat most of the screen, so it starts as a title bar.
+if (COARSE_POINTER) schematic.setCollapsed(true);
 
 // ---------------------------------------------------------------------------
 // M3 — physics. Solve the live circuit and float the meters off the result.
@@ -281,6 +321,9 @@ if (import.meta.env.DEV) {
     sfx,
     perf,
     perfPanel,
+    hud,
+    touchPad,
+    coarsePointer: COARSE_POINTER,
     // QA helpers: apply a resistor set / record a reading without the UI.
     setResistors: (values: ResistorSet) => {
       kit.components.base.setResistors(values);

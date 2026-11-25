@@ -81,6 +81,8 @@ export class CameraRig {
   /** Drag-to-look fallback, used only when the pointer is not locked. */
   private lookDrag = false;
   private readonly dragLast = new THREE.Vector2();
+  /** On-screen movement axes from the touch pad (touch fallback for WASD). */
+  private readonly pad = { forward: 0, right: 0 };
   /** Host hook: returns true while another tool (the wiring tool) owns the drag. */
   isOtherDragging: () => boolean = () => false;
 
@@ -235,14 +237,15 @@ export class CameraRig {
       this.fp = null;
     }
     this.keys.clear();
+    this.setMoveInput(0, 0);
   }
 
   private updateWalk(delta: number): void {
     const fp = this.fp;
     if (!fp) return;
 
-    let forward = 0;
-    let right = 0;
+    let forward = this.pad.forward;
+    let right = this.pad.right;
     if (this.keys.has("KeyW") || this.keys.has("ArrowUp")) forward += 1;
     if (this.keys.has("KeyS") || this.keys.has("ArrowDown")) forward -= 1;
     if (this.keys.has("KeyD") || this.keys.has("ArrowRight")) right += 1;
@@ -260,10 +263,20 @@ export class CameraRig {
   }
 
   /**
+   * On-screen movement input — the touch fallback for WASD. `forward`/`right`
+   * are clamped to -1..1 and merged with the keyboard set each frame, so a
+   * device with both (touchscreen laptop) gets the sum of the two.
+   */
+  setMoveInput(forward: number, right: number): void {
+    this.pad.forward = THREE.MathUtils.clamp(forward, -1, 1);
+    this.pad.right = THREE.MathUtils.clamp(right, -1, 1);
+  }
+
+  /**
    * Rotate the first-person camera by a screen-space delta. This is the fallback
    * look control so the lab is still explorable when pointer lock is unavailable
-   * (e.g. inside an iframe/embed). It is ignored once the pointer is locked,
-   * because then PointerLockControls drives the camera.
+   * (e.g. inside an iframe/embed, or on a touch device). It is ignored once the
+   * pointer is locked, because then PointerLockControls drives the camera.
    */
   lookBy(dx: number, dy: number): void {
     if (this.isLocked) return;

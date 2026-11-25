@@ -66,6 +66,8 @@ export interface PerfOptions {
   lowFps?: number;
   /** Averaged FPS above this counts as "comfortable". */
   highFps?: number;
+  /** Rung the ladder starts on (touch devices begin at `medium`). */
+  initialTier?: QualityTier;
   /** Consecutive 1 s low samples before stepping down. */
   downAfter?: number;
   /** Consecutive 1 s high samples before stepping back up. */
@@ -98,6 +100,7 @@ export class PerfGovernor {
     this.highFps = opts.highFps ?? 58;
     this.downAfter = opts.downAfter ?? 3;
     this.upAfter = opts.upAfter ?? 5;
+    this.tier = opts.initialTier ?? "high";
     this.apply(this.tier);
   }
 

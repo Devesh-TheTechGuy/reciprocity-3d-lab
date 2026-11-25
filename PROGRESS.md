@@ -15,16 +15,19 @@ wiring, the "Paused card never disappears" lock fix (§5), **M3 physics**
 (netlist + MNA solver + live E/V/I readouts — §5b), and the **M4 experiment flow**
 (Fig 1(a)→1(b) state machine, Table 1 + verification, runtime resistor swap — §5c).
 
-**M5 slices 1–4 are all committed:** slice 1 post-FX (`cd9cd3f` — EffectComposer +
+**M5 slices 1–5 are all committed:** slice 1 post-FX (`cd9cd3f` — EffectComposer +
 SSAO + bloom + OutputPass, MSAA buffers, lighting/exposure rebalance — §5d),
 slice 2 HDRI environment (`11f9d8b` — PMREM IBL from a CC0 Poly Haven studio map —
-§5e), and slices 3+4 (`126a5b5` — the 2D circuit-map schematic §5f, sound cues
-§5g, performance pass §5h). Slices 3 and 4 share hunks in `main.ts`/`style.css`,
-so they ship as one commit to keep every commit buildable.
+§5e), slices 3+4 (`126a5b5` — the 2D circuit-map schematic §5f, sound cues
+§5g, performance pass §5h), and **slice 5 mobile/touch fallback** (§5i — on-screen
+pad, long-press unplug, drag-to-look, phone layout). Slices 3 and 4 share hunks in
+`main.ts`/`style.css`, so they shipped as one commit to keep every commit buildable.
 
-**Nothing is half-edited.** `npm run build` is green (52 modules).
+**Nothing is half-edited.** `npm run build` is green.
 
-**The very next action:** **M5 slice 5 — mobile/touch fallback** (§6.3).
+**The very next action:** push, then a quick visual pass on a real phone (or a
+narrow desktop window under 760 px) — the headless CDP-touch run already clears
+390×844 and 375×667 (§5i).
 
 ---
 
@@ -189,7 +192,11 @@ Remove-Item -LiteralPath 'vite-dev.log','vite-dev.err.log' -Force -ErrorAction S
   - [x] **M5 slice 2b — 2D circuit-map schematic** (this session, bonus): §5f.
   - [x] **M5 slice 3 — sound cues** (this session): §5g.
   - [x] **M5 slice 4 — performance pass** (this session): §5h.
-  - [ ] M5 slice 5 — mobile/touch fallback.
+  - [x] **M5 slice 5 — mobile/touch fallback** (this session): §5i
+        (`ui/touchPad.ts` on-screen pad + Overview button, long-press unplug in
+        `wiringTool.ts`, drag-to-look, coarse-pointer HUD hint, the
+        `@media (max-width: 760px)` phone layout, `html.ui-fp`).
+- [ ] **M5 polish** — remaining: real-device visual pass.
 
 **Verified for M3 (this session):** `npx tsc --noEmit` clean; `npm run build`
 clean (29 modules). With the dev-only `window.lab` hook, driving `wiring.add(...)`
@@ -552,6 +559,53 @@ RenderPass ─► SSAOPass ─► UnrealBloomPass ─► OutputPass ─► scree
   **low** at ~5.7 s; 60 fps then ratcheted **low → medium → high**. Clicking the
   panel buttons produced the same transitions and the active-button highlight
   tracked them.
+## 5i. M5 slice 5 — mobile / touch fallback
+
+Touch now drives the whole experiment; there is no keyboard, no mouse and no
+pointer lock on a phone, so every desktop gesture got a touch equivalent.
+
+- **`src/ui/touchPad.ts`** (new) — an on-screen D-pad (`▲ ◀ ▶ ▼`) plus an
+  **Overview** button. Keys emit an axis-vector callback that `main.ts` feeds
+  straight into `cameraRig.setMoveInput(x, z)`, so the pad reuses the existing
+  walk/collision path instead of a parallel movement system. `pointerdown`
+  captures the pointer so a thumb that slides off the key still releases it
+  (wrapped in `try/catch` — a synthetic/automated pointer can refuse capture and
+  that must not stop the key working). The pad only shows on a coarse pointer in
+  first-person mode; **Overview** calls back into the rig's `exit()`.
+- **Wiring without a mouse button** (`src/interaction/wiringTool.ts`) — touch has
+  no secondary button, so a **long press (450 ms) on an already-plugged terminal**
+  unplugs it. The press first starts a *tentative* new cord; if the finger holds
+  still past 450 ms the tentative cord is rolled back and `unplugAt()` runs, but
+  moving past 12 px cancels the timer so ordinary dragging is untouched. The
+  desktop right-click path and the new touch path share one `unplugAt()`, and
+  `armLongPress` is gated on `pointerType !== "mouse"` (verified: holding the
+  mouse button for 850 ms does **not** unplug).
+- **Drag-to-look on touch** (`src/interaction/cameraRig.ts`) — a touch drag over
+  empty space rotates the head; `wiringTool.isDragging` still wins the gesture, so
+  a drag that *starts* on a terminal patches a cord instead of turning the view.
+- **HUD** (`src/ui/hud.ts`) — a coarse-pointer hint row
+  (*drag to look · drag a cord between terminals · hold a terminal to unplug*)
+  replaces the mouse/keyboard hints; short enough to wrap on a 375 px screen.
+- **Phone layout** (`src/style.css`, `@media (max-width: 760px)`) — the desktop
+  panels fold into a right-hand column (readout, apparatus, circuit map), the
+  observation table becomes a scrollable bottom sheet (`--sheet-h`), and the
+  pad / hint bar / prompt stack above it on measured, non-overlapping offsets.
+  A scoped `box-sizing: border-box` reset stops the padded panels overflowing a
+  narrow screen; the `.ui-touch` container is `pointer-events: none` so only the
+  keys are touch targets and looks still work *over* the pad; `.ui-perf` is hidden
+  (the governor is automatic) and the apparatus panel steps aside while walking
+  (the resistor set is chosen from the overview) via a `html.ui-fp` hook set once
+  in `main.ts`.
+- **Verified (headless, real CDP touch — not synthetic events):** on **390×844**
+  and **375×667**, first-person shows **zero panel overlaps and nothing off
+  screen**; the intro card fits; the R1–R3 selects fit their panel; the hint is
+  not clipped; every terminal ray-casts through to the canvas (`elementFromPoint`
+  → `CANVAS`). A finger drag patched a cord (`wiring.list().length 0 → 1`), a
+  450 ms hold unplugged it (`→ 0`), moving mid-hold patched instead of unplugging,
+  drag-to-look changed the camera quaternion without starting a cord, the pad
+  walked the camera forward and stopped on release, and **Overview** returned to
+  orbit. Desktop re-checked at 1600×755 with 0 errors: mouse patch, right-click
+  (button 2) unplug, mouse long-press disabled, drag-wins — all unchanged.
 
 ---
 
@@ -566,7 +620,9 @@ environment, §5e) implemented + verified and staged for its own commit → the
 **2D circuit-map schematic** (§5f), **M5 slice 3 sound cues** (§5g) and **M5
 slice 4 performance pass** (§5h) implemented + verified, then committed together
 as `126a5b5` (they share hunks in `main.ts`/`style.css`, so one commit keeps the
-tree buildable).
+tree buildable) → **M5 slice 5 mobile/touch fallback** (§5i) implemented + verified
+against real CDP touch events at 390×844 and 375×667 and a desktop mouse pass at
+1600×755, staged as one commit.
 
 ### 6.2 M4 — done (as implemented)
 The flow + table shipped exactly as described in §4/§5c: `ExperimentFlow` keyed off
@@ -586,7 +642,12 @@ from `main.ts`'s `refreshReadings()`.
 - **M5 slice 4 (performance pass) — DONE this session** (see §5h): `core/perf.ts`
   (`QUALITY_PRESETS` + adaptive `PerfGovernor`), `postfx.setPasses/setSamples`,
   `engine.setPixelRatioCap`, shadow-map resize, `ui/perfPanel.ts` FPS/quality panel.
-- **M5 slice 5 (next):** mobile/touch fallback.
+- **M5 slice 5 (mobile/touch fallback) — DONE this session** (see §5i):
+  `ui/touchPad.ts` (on-screen pad + Overview), long-press-to-unplug in
+  `WiringTool` (shares `unplugAt` with the desktop right-click), touch
+  drag-to-look, a coarse-pointer HUD hint, and the `@media (max-width: 760px)`
+  phone layout with the `html.ui-fp` hook. Next: push, then a real-device visual
+  pass.
 - **Deferred:** add `reciprocity-3d-lab/` to the **outer** repo's `.gitignore`
   (nested-repo noise) — not done (would touch a different repo).
 - **Optional realism:** give the meters a burden resistance (ammeter ≈1 Ω, voltmeter

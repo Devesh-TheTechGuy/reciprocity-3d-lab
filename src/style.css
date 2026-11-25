@@ -684,3 +684,306 @@ button[data-action]:disabled {
   font-weight: 700;
 }
 
+/* ---------------------------------------------------------------------------
+   M5 slice 5 — touch / small-screen fallback.
+
+   Touch devices have no keyboard, no scroll wheel and no secondary mouse
+   button, so the lab needs: an on-screen walk pad, bigger hit targets, and a
+   layout that survives a 360 px - 430 px wide screen. The 3D side needs nothing
+   extra — OrbitControls and the drag-to-look/wiring paths already run on
+   pointer events, and OrbitControls sets `touch-action: none` on the canvas.
+   --------------------------------------------------------------------------- */
+
+/* On-screen movement + overview buttons (created by ui/touchPad.ts). */
+.ui-touch {
+  top: auto;
+  left: auto;
+  right: 20px;
+  bottom: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  /* Only the keys are touch targets — the empty grid cells and the gaps must
+     fall through to the canvas so looking around still works over the pad. */
+  pointer-events: none;
+}
+
+.ui-touch-pad {
+  display: grid;
+  grid-template-columns: repeat(3, 52px);
+  grid-template-rows: repeat(3, 52px);
+  gap: 6px;
+}
+
+.ui-touch-key[data-axis="up"] {
+  grid-area: 1 / 2;
+}
+
+.ui-touch-key[data-axis="left"] {
+  grid-area: 2 / 1;
+}
+
+.ui-touch-key[data-axis="right"] {
+  grid-area: 2 / 3;
+}
+
+.ui-touch-key[data-axis="down"] {
+  grid-area: 3 / 2;
+}
+
+.ui-touch-key,
+.ui-touch-exit {
+  font: inherit;
+  color: var(--ui-fg);
+  font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+  background: rgba(14, 17, 22, 0.62);
+  border: 1px solid var(--ui-border);
+  backdrop-filter: blur(6px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  cursor: pointer;
+  pointer-events: auto;
+  /* A held direction key must never scroll or zoom the page. */
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.ui-touch-key:active,
+.ui-touch-exit:active {
+  color: #0b0e13;
+  background: var(--ui-accent);
+  border-color: var(--ui-accent);
+}
+
+.ui-touch-key {
+  width: 52px;
+  height: 52px;
+  font-size: 14px;
+  border-radius: 50%;
+  opacity: 0.72;
+}
+
+.ui-touch-exit {
+  padding: 8px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 999px;
+  opacity: 0.82;
+}
+
+/* Bigger tags, no 300 ms tap delay, no pull-to-refresh while dragging. */
+@media (pointer: coarse) {
+  html,
+  body {
+    overscroll-behavior: none;
+  }
+
+  button[data-action],
+  .ui-touch-key,
+  .ui-touch-exit,
+  .ui-schematic-head button,
+  .ui-perf-modes button {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  button[data-action] {
+    min-height: 44px;
+    padding: 12px 20px;
+  }
+
+  .ui-apparatus-field select {
+    min-height: 40px;
+  }
+
+  .ui-schematic-head button {
+    min-width: 40px;
+    min-height: 34px;
+  }
+
+  .ui-perf-modes button {
+    min-width: 46px;
+    min-height: 32px;
+  }
+}
+
+/* Phone layout: the panels fold into a right-hand column, the observation
+   table becomes a scrollable bottom sheet, and everything else stacks above it. */
+@media (max-width: 760px) {
+  :root {
+    /* Height of the observation bottom sheet; everything else stacks above it. */
+    --sheet-h: 26vh;
+  }
+
+  .ui-brand {
+    top: 10px;
+    left: 12px;
+    font-size: 12px;
+  }
+
+  .ui-brand em {
+    font-size: 9px;
+    letter-spacing: 0.4px;
+  }
+
+  /* The overlay has no global box-sizing reset, so an explicit width plus padding
+     would overflow — scope a border-box reset to the phone layout. */
+  .ui-card,
+  .ui-readout,
+  .ui-apparatus,
+  .ui-observations,
+  .ui-perf,
+  .ui-schematic {
+    box-sizing: border-box;
+  }
+
+  /* The intro/paused card is centred, so it must not overflow a 390 px screen. */
+  .ui-card {
+    box-sizing: border-box;
+    width: calc(100vw - 32px);
+    max-width: 460px;
+    padding: 20px 18px;
+  }
+
+  .ui-card--small {
+    width: calc(100vw - 48px);
+    max-width: 340px;
+    padding: 18px;
+  }
+
+  /* Right-hand column: readout, then the apparatus selectors, then the map. */
+  .ui-readout {
+    top: 48px;
+    right: 12px;
+    min-width: 0;
+    width: min(212px, 56vw);
+    padding: 8px 10px;
+    font-size: 11px;
+  }
+
+  .ui-readout h3 {
+    margin-bottom: 5px;
+    font-size: 10px;
+  }
+
+  .ui-readout dl {
+    gap: 2px;
+  }
+
+  /* Guidance sits low, just above the touch hint bar, where the table is. */
+  .ui-prompt {
+    top: auto;
+    left: 12px;
+    right: 12px;
+    bottom: calc(var(--sheet-h) + 64px);
+    width: auto;
+    max-width: none;
+    transform: none;
+    font-size: 11px;
+    border-radius: 10px;
+  }
+
+  .ui-apparatus {
+    top: 158px;
+    left: auto;
+    right: 12px;
+    width: min(232px, 62vw);
+    padding: 8px 10px;
+  }
+
+  .ui-apparatus h3 {
+    margin-bottom: 5px;
+    font-size: 10px;
+  }
+
+  .ui-apparatus-row {
+    gap: 4px;
+  }
+
+  .ui-apparatus-field {
+    flex: 1 1 0;
+    min-width: 0;
+    font-size: 10px;
+  }
+
+  .ui-apparatus-field select {
+    width: 100%;
+    min-width: 0;
+    font-size: 10px;
+    padding: 4px 2px;
+  }
+
+  /* While walking, the phone screen keeps only what the walk needs — the
+     resistor set is chosen from the overview (see the pad's Overview button). */
+  html.ui-fp .ui-apparatus {
+    display: none;
+  }
+
+  /* The FPS readout is a desktop/QA affordance — the governor adapts on its own
+     and the four quality buttons are not a usable touch target set. */
+  .ui-perf {
+    display: none;
+  }
+
+  .ui-schematic {
+    top: 268px;
+    right: 12px;
+    bottom: auto;
+    left: auto;
+    transform: none;
+    width: min(200px, 52vw);
+    /* Keep an open intro card above the map (both are separate fixed roots). */
+    z-index: 5;
+  }
+
+  .ui-observations {
+    left: 12px;
+    right: 12px;
+    bottom: 12px;
+    min-width: 0;
+    max-height: var(--sheet-h);
+    overflow: auto;
+    padding: 8px 10px;
+    font-size: 11px;
+  }
+
+  .ui-observations h3 {
+    margin-bottom: 5px;
+    font-size: 10px;
+  }
+
+  .ui-hintbar {
+    left: 12px;
+    right: 12px;
+    bottom: calc(var(--sheet-h) + 14px);
+    max-width: none;
+    transform: none;
+    /* The desktop bar is a single nowrap line; on a phone it must wrap. */
+    white-space: normal;
+    font-size: 10px;
+    line-height: 1.5;
+  }
+
+  /* The pad lives bottom-LEFT so it clears the right-hand column on small
+     screens, and above the guidance + hint bar so none of them collide. */
+  .ui-touch {
+    left: 12px;
+    right: auto;
+    bottom: calc(var(--sheet-h) + 105px);
+  }
+
+  .ui-touch-pad {
+    grid-template-columns: repeat(3, 46px);
+    grid-template-rows: repeat(3, 46px);
+    gap: 5px;
+  }
+
+  .ui-touch-key {
+    width: 46px;
+    height: 46px;
+  }
+}
+
+

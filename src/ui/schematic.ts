@@ -315,7 +315,8 @@ export class Schematic {
     }
   }
 
-  private setCollapsed(next: boolean): void {
+  /** Collapse the panel to just its title bar (used on small screens). */
+  setCollapsed(next: boolean): void {
     this.collapsed = next;
     this.root.classList.toggle("ui-schematic--collapsed", next);
     this.toggle.innerHTML = next ? "&#9656;" : "&#9662;";
