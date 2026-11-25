@@ -15,21 +15,16 @@ wiring, the "Paused card never disappears" lock fix (§5), **M3 physics**
 (netlist + MNA solver + live E/V/I readouts — §5b), and the **M4 experiment flow**
 (Fig 1(a)→1(b) state machine, Table 1 + verification, runtime resistor swap — §5c).
 
-**Committed locally, NOT yet pushed:** **M5 slice 1: post-FX** (`cd9cd3f` —
-EffectComposer + SSAO + bloom + OutputPass, MSAA buffers, lighting/exposure
-rebalance — §5d) and **M5 slice 2: HDRI environment** (PMREM IBL from a CC0
-Poly Haven studio map — §5e).
-
-**Also done (uncommitted at handoff):** the **2D circuit-map schematic** (§5f —
-live side panel, Fig 1(a)/(b) wiring guide + animated current), **M5 slice 3:
-sound cues** (§5g — synthesized WebAudio plug/unplug/switch/tick), and **M5
-slice 4: performance pass** (§5h — quality presets + adaptive `PerfGovernor`,
-FPS/quality panel, DPR cap, AO/bloom toggles, MSAA + shadow-map size).
+**M5 slices 1–4 are all committed:** slice 1 post-FX (`cd9cd3f` — EffectComposer +
+SSAO + bloom + OutputPass, MSAA buffers, lighting/exposure rebalance — §5d),
+slice 2 HDRI environment (`11f9d8b` — PMREM IBL from a CC0 Poly Haven studio map —
+§5e), and slices 3+4 (`126a5b5` — the 2D circuit-map schematic §5f, sound cues
+§5g, performance pass §5h). Slices 3 and 4 share hunks in `main.ts`/`style.css`,
+so they ship as one commit to keep every commit buildable.
 
 **Nothing is half-edited.** `npm run build` is green (52 modules).
 
-**The very next action:** **M5 slice 5 — mobile/touch fallback** (§6.3), then
-`git push` all M5 commits.
+**The very next action:** **M5 slice 5 — mobile/touch fallback** (§6.3).
 
 ---
 
@@ -569,8 +564,9 @@ pushed → implemented + verified M3 (§4/§5b) and pushed → implemented + ver
 §5d) committed locally as `cd9cd3f` (not pushed) → **M5 slice 2** (HDRI
 environment, §5e) implemented + verified and staged for its own commit → the
 **2D circuit-map schematic** (§5f), **M5 slice 3 sound cues** (§5g) and **M5
-slice 4 performance pass** (§5h) implemented + verified; all three uncommitted at
-handoff.
+slice 4 performance pass** (§5h) implemented + verified, then committed together
+as `126a5b5` (they share hunks in `main.ts`/`style.css`, so one commit keeps the
+tree buildable).
 
 ### 6.2 M4 — done (as implemented)
 The flow + table shipped exactly as described in §4/§5c: `ExperimentFlow` keyed off
