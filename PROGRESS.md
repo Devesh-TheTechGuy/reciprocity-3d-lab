@@ -20,10 +20,16 @@ EffectComposer + SSAO + bloom + OutputPass, MSAA buffers, lighting/exposure
 rebalance — §5d) and **M5 slice 2: HDRI environment** (PMREM IBL from a CC0
 Poly Haven studio map — §5e).
 
-**Nothing is half-edited.** `npm run build` is green (48 modules).
+**Also done (uncommitted at handoff):** the **2D circuit-map schematic** (§5f —
+live side panel, Fig 1(a)/(b) wiring guide + animated current), **M5 slice 3:
+sound cues** (§5g — synthesized WebAudio plug/unplug/switch/tick), and **M5
+slice 4: performance pass** (§5h — quality presets + adaptive `PerfGovernor`,
+FPS/quality panel, DPR cap, AO/bloom toggles, MSAA + shadow-map size).
 
-**The very next action:** **M5 slice 3 — sound cues** (§6.3), then the perf pass
-and the touch fallback; finally `git push` all M5 commits.
+**Nothing is half-edited.** `npm run build` is green (52 modules).
+
+**The very next action:** **M5 slice 5 — mobile/touch fallback** (§6.3), then
+`git push` all M5 commits.
 
 ---
 
@@ -185,8 +191,9 @@ Remove-Item -LiteralPath 'vite-dev.log','vite-dev.err.log' -Force -ErrorAction S
         `scene.environment`, plus a blurred `scene.background`), a 1k CC0 Poly
         Haven studio HDR in `public/assets/hdri/`, and the hemisphere fill trimmed
         `0.5 → 0.4` to offset the new image-based lighting.
-  - [ ] M5 slice 3 — sound cues (synthesized WebAudio).
-  - [ ] M5 slice 4 — performance pass.
+  - [x] **M5 slice 2b — 2D circuit-map schematic** (this session, bonus): §5f.
+  - [x] **M5 slice 3 — sound cues** (this session): §5g.
+  - [x] **M5 slice 4 — performance pass** (this session): §5h.
   - [ ] M5 slice 5 — mobile/touch fallback.
 
 **Verified for M3 (this session):** `npx tsc --noEmit` clean; `npm run build`
@@ -435,6 +442,124 @@ RenderPass ─► SSAOPass ─► UnrealBloomPass ─► OutputPass ─► scree
 
 ---
 
+## 5f. 2D circuit-map schematic (live wiring guide + animated current)
+
+- **`src/ui/schematic.ts`** — a `Schematic` panel on the right of the screen,
+  built exactly like `Hud` / `ObservationTable` (creates a DOM root, appends to
+  `document.body`, all look from `style.css`). It draws an **SVG** that mirrors the
+  physical kit: the board T-network (`T1–C1–T3` top, `T2–T5–T4` rail, zig-zag
+  R1/R2/R3) and the `E`, `V`, `mA` instruments in labelled boxes.
+- **Live wiring:** the cords the student actually patched come straight from
+  `wiring.list()` and are coloured by the instrument post they land on (red `+`
+  lead, grey `−` lead, brass for board links); plugged terminals get a green ring.
+- **"How to connect" guide:** while the circuit is open, dashed ghost cords +
+  dashed terminal rings show the recommended patching for the figure the student is
+  working towards. The target is derived in `main.ts` from `ExperimentFlow` state
+  (Fig 1(a) at the start, Fig 1(b) once `I_A` is recorded).
+- **Working simulation:** when `solveCircuit(...).config !== null`, a marching-dash
+  "current" is animated around the loop; `tick(delta)` (called next to
+  `rig.update`/`wiringTool.update` in the engine loop) advances the dash offset at
+  a speed proportional to `|I|`. Direction is per-figure and *correct* — `FLOW.A` /
+  `FLOW.B` list the directed segments (Fig 1(a) reads the R2 branch, Fig 1(b) the
+  R1 branch); reversed segments use a negative dash offset. Ideal-voltmeter cords
+  are deliberately **not** animated (no current through V).
+- **Readings:** the V/mA boxes show `solution.voltage` / `solution.current` live,
+  and a status line reads "Closed loop · 20.00 mA…" or "Open circuit · patch the
+  dashed cords…". A small header toggle collapses the panel.
+- **Wiring:** `main.ts` gains `schematic.render({ params, solution, cords, target })`
+  inside `refreshReadings()` and `schematic.tick(delta)` in the engine loop; the
+  dev handle exposes `lab.schematic`.
+- **Verified (headless):** `npx tsc --noEmit` = 0; `npm run build` = 0; console
+  **0 errors / 0 warnings**. Open state → "Open circuit · patch the dashed cords
+  for Fig 1(a)" (6 dashed guide cords, 10 target rings). Wire Fig 1(a)
+  (`E/V→T1/T2`, `mA→T3/T4`) → `detectConfig() === "A"`, 6.000 V / **20.00 mA**,
+  9 flow paths, and the dash offset provably advances frame-to-frame (direction
+  confirmed: the two return segments run reversed). Record `I_A` → clear → guide
+  auto-switches to Fig 1(b); wire Fig 1(b) → config `B`, also **20.00 mA**.
+  Screenshots: `sch-initial.png`, `sch-figA-live.png`, `sch-figB-panel.png`.
+
+---
+
+## 5g. M5 slice 3 — sound cues (synthesized WebAudio, no assets)
+
+- **`src/audio/sfx.ts`** — `Sfx`: every cue is generated from oscillators +
+  band-passed white noise, so the lab ships **zero audio files**. Cues:
+  `plug()` (bright click + low contact thunk), `unplug()` (softer click),
+  `switch()` (relay clack — circuit closes / figure swaps), `tick()` (tiny meter
+  blip when a reading settles on a new value). Exposes `setEnabled`, `setVolume`,
+  `isEnabled`.
+- **Autoplay-safe:** the `AudioContext` is created **lazily** and only after
+  `resume()` has run from a user gesture — `resume()` sets an `unlocked` flag that
+  gates every cue, so no context is ever constructed during initial load (which is
+  what would otherwise log a console warning). `resume()` is called from the
+  **"Enter the lab"** click in `main.ts`. If WebAudio is missing, every method is a
+  silent no-op (headless-safe).
+- **Wiring:** `main.ts` passes `onConnect: () => sfx.plug()` /
+  `onDisconnect: () => sfx.unplug()` to `WiringTool`; `refreshReadings()` fires
+  `sfx.switch()` on a `null → A/B` (or `A ↔ B`) config transition and `sfx.tick()`
+  when the displayed mA changes while live (a transition also resets the
+  last-reading memo so switch and tick never double-fire). The dev handle exposes
+  `lab.sfx`.
+- **Verified (headless):** `npx tsc --noEmit` = 0; `npm run build` = 0 (50 modules);
+  console **0 errors / 0 warnings** (no pre-gesture AudioContext warning). Before
+  `resume()`, `sfx.plug()` leaves `sfx.ctx === null`; after `resume()` the context
+  state is `running`. Spying on the four cues and driving real transitions:
+  closing Fig 1(a) fires **switch ×1 / tick ×0**, then changing R to
+  {220,330,470} fires **tick ×1** (reading 20.00 → 8.52 mA = theory
+  `6·470/(220·330+330·470+470·220)`); invoking `wiringTool`'s `onConnect`/
+  `onDisconnect` fires **plug ×1 / unplug ×1**.
+
+## 5h. M5 slice 4 — performance pass (quality presets + adaptive governor)
+
+- **`src/core/perf.ts`** — `QUALITY_PRESETS` (three rungs: `high`/`medium`/`low`)
+  and `PerfGovernor`. Each preset drives the four knobs that actually cost time in
+  this scene, behind a small `QualityTargets` interface so the governor never
+  knows *how* they are applied:
+
+  | tier | DPR cap | shadow map | MSAA | SSAO | bloom |
+  | --- | --- | --- | --- | --- | --- |
+  | high | 2 | 2048² | 4× | on | on |
+  | medium | 1.5 | 1024² | 2× | off | on |
+  | low | 1 | 512² | off | off | off |
+
+- **Adaptive `auto` mode:** real wall-clock frame times are bucketed per second;
+  if the average sags below **45 fps** for **3** consecutive seconds the tier steps
+  down, and if it holds above **58 fps** for **5** seconds it steps back up
+  (hysteresis + boundary clamping, so it cannot oscillate or fall off the ends).
+  Gaps > 0.5 s (backgrounded tab, first resume) are ignored so a pause never
+  masquerades as a slow frame. `tick(nowMs?)` takes an injectable timestamp, which
+  is what made the behaviour testable deterministically.
+- **`src/core/postfx.ts`** — added `setPasses({ ssao, bloom })` (a disabled pass is
+  skipped outright by `EffectComposer`) and `setSamples(n)`. MSAA is allocated with
+  the composer's render targets, so `setSamples` disposes and **rebuilds** the
+  chain (pass disposals + a fresh `EffectComposer`), preserving the disabled-pass
+  state and pixel ratio. The class is refactored around a private `build()`; the
+  public instance stays the same object, so `engine.setComposer(postfx)` and
+  `lab.postfx` are unaffected by a rebuild.
+- **`src/core/engine.ts`** — a `pixelRatioCap` (default 2) with
+  `setPixelRatioCap()` and a shared private `applySize()` used by the constructor,
+  `onResize` and the cap setter, so the renderer and composer always re-allocate
+  together. Also added `stop()` (pairs with `start()`; used by QA).
+- **Shadow maps** are resized in `main.ts` (`qualityTargets.setShadowMapSize`) by
+  setting `sun.shadow.mapSize` and disposing/nulling `sun.shadow.map` so three
+  re-allocates the depth texture at the new size.
+- **`src/ui/perfPanel.ts` + `.ui-perf` CSS** — a compact, translucent bottom-right
+  panel: live **fps** (green; turns amber under 45) plus `Auto / High / Med / Low`
+  buttons, repainted from the governor via a single `onChange` subscription.
+- **Verified (headless):** `npx tsc --noEmit` = 0; `npm run build` = 0 (**52
+  modules**); console **0 errors / 0 warnings**. Driving the real stack through the
+  dev hook: `low` → `ratioCap 1`, `samples 0`, `ssao/bloom false`, `shadow 512`;
+  `high` → `2 / 4× / true / true / 2048`. With `devicePixelRatio` stubbed to 2 the
+  ratio clamped to `1.5` at `medium` (proving `min(dpr, cap)`), and the composer's
+  `renderTarget1.samples` read back `0` at `low` vs `4` at `high` (the rebuild
+  works). Deterministic governor run (loop stopped via the new `engine.stop()`,
+  synthetic timestamps): *auto* held **high**, 30 fps → **medium** at ~2.7 s →
+  **low** at ~5.7 s; 60 fps then ratcheted **low → medium → high**. Clicking the
+  panel buttons produced the same transitions and the active-button highlight
+  tracked them.
+
+---
+
 ## 6. What I was doing / about to do
 
 ### 6.1 Already done this session
@@ -442,7 +567,10 @@ RenderPass ─► SSAOPass ─► UnrealBloomPass ─► OutputPass ─► scree
 pushed → implemented + verified M3 (§4/§5b) and pushed → implemented + verified
 **M4** (§4/§5c) as `9f7c33c`, then updated this file → **M5 slice 1** (post-FX,
 §5d) committed locally as `cd9cd3f` (not pushed) → **M5 slice 2** (HDRI
-environment, §5e) implemented + verified and staged for its own commit.
+environment, §5e) implemented + verified and staged for its own commit → the
+**2D circuit-map schematic** (§5f), **M5 slice 3 sound cues** (§5g) and **M5
+slice 4 performance pass** (§5h) implemented + verified; all three uncommitted at
+handoff.
 
 ### 6.2 M4 — done (as implemented)
 The flow + table shipped exactly as described in §4/§5c: `ExperimentFlow` keyed off
@@ -456,10 +584,13 @@ from `main.ts`'s `refreshReadings()`.
 - **M5 slice 2 (HDRI environment) — DONE this session** (see §5e): `Environment` +
   `HDRLoader` → PMREM IBL, 1k CC0 Poly Haven studio map in `public/assets/hdri/`,
   blurred `scene.background`, hemisphere `0.5 → 0.4`, `environmentIntensity 0.45`.
-- **M5 slice 3 (next):** sound cues (synthesized WebAudio: plug/unplug, meter tick, switch).
-- **M5 slice 4:** performance pass (profile; consider DPR cap, AO/bloom toggles,
-  MSAA `samples`, shadow map size).
-- **M5 slice 5:** mobile/touch fallback.
+- **M5 slice 3 (sound cues) — DONE this session** (see §5g): `audio/sfx.ts`
+  (synthesized WebAudio, no assets), autoplay-safe lazy unlock, plug/unplug from
+  `WiringTool`, switch/tick from `refreshReadings`.
+- **M5 slice 4 (performance pass) — DONE this session** (see §5h): `core/perf.ts`
+  (`QUALITY_PRESETS` + adaptive `PerfGovernor`), `postfx.setPasses/setSamples`,
+  `engine.setPixelRatioCap`, shadow-map resize, `ui/perfPanel.ts` FPS/quality panel.
+- **M5 slice 5 (next):** mobile/touch fallback.
 - **Deferred:** add `reciprocity-3d-lab/` to the **outer** repo's `.gitignore`
   (nested-repo noise) — not done (would touch a different repo).
 - **Optional realism:** give the meters a burden resistance (ammeter ≈1 Ω, voltmeter
@@ -523,8 +654,26 @@ T2 (rail) ────────  T5 ────────  T4 (rail)     �
 Dev builds expose
 `window.lab = { engine, kit, postfx, environment, rig, table, wiring, wiringTool,
 circuit, solveCircuit, theoreticalCurrent, refreshReadings, flow, observations,
-setResistors, recordObservation }` (stripped from production by
-`import.meta.env.DEV`). Useful calls:
+schematic, sfx, perf, perfPanel, setResistors, recordObservation }` (stripped
+from production by `import.meta.env.DEV`). Useful calls:
+- **schematic (2D circuit map, §5f):** `lab.schematic` — it re-renders from
+  `lab.refreshReadings()`; inspect the drawn state with
+  `document.querySelectorAll("path.sch-guide")` (dashed "how to wire" cords when
+  open), `path.sch-cord` (patched cords), `path.sch-flow` (animated current, with
+  `data-dir="±1"`), and `.ui-schematic-svg` for the whole SVG. `lab.schematic.tick(dt)`
+  advances the flow by hand if the loop is paused.
+- **sound (§5g):** `lab.sfx` — `lab.sfx.resume()` unlocks audio (normally done by the
+  "Enter the lab" click); `lab.sfx.plug()/unplug()/switch()/tick()` fire a cue;
+  `lab.sfx.setEnabled(false)` / `setVolume(0.3)`; `lab.sfx.ctx?.state` is `"running"`
+  once unlocked (and `ctx` stays null until the first `resume()`).
+- **performance (§5h):** `lab.perf` — `lab.perf.setMode("auto"|"high"|"medium"|"low")`,
+  `lab.perf.qualityMode`, `lab.perf.tierName` (the resolved rung), `lab.perf.fps`.
+  Inspect the applied knobs with `lab.engine.ratioCap`,
+  `lab.postfx.samples`/`lab.postfx.ssao.enabled`/`lab.postfx.bloom.enabled`, and
+  `lab.engine.scene.children.find(o => o.isDirectionalLight).shadow.mapSize.x`.
+  To test the adaptive logic deterministically, stop the loop and feed synthetic
+  timestamps: `lab.engine.stop()` → `for (…) lab.perf.tick(t += 33)` → `lab.engine.start()`.
+  The panel itself is `lab.perfPanel` (DOM in `.ui-perf`).
 - **environment (M5/§5e):** `lab.environment.texture` (null until the HDR decodes),
   `lab.environment.setIntensity(v)` → `scene.environmentIntensity`, and
   `lab.engine.scene.backgroundIntensity` / `backgroundBlurriness` for the skybox.
@@ -576,6 +725,15 @@ already applied), `m5s2-env-scene.png` (first-person kit, env on),
 (orbit, UI hidden — the luminance-comparison frame), `m5s2-env-kit-final.png`
 (tuned: warmer brass sheen, board not blown) and `m5s2-env-orbit-final.png`
 (tuned orbit; the soft studio backdrop).
+
+**2D circuit map (§5f):** `sch-initial.png` (open circuit, dashed Fig 1(a) guide),
+`sch-figA-live.png` (Fig 1(a) wired — real cords + 6.000 V / 20.00 mA),
+`sch-figB-panel.png` (Fig 1(b) close-up — crossed cords, still 20.00 mA).
+
+**M5 slice 4 (performance pass, §5h):** `m5s4-perf-low.png` (bottom-right panel
+live — "60 fps", **Low** active — with the whole scene still rendering: no black
+frame at the cheapest tier) and `m5s4-perf-high.png` (High active, 4× MSAA + SSAO
++ bloom + 2048² shadows).
 
 ## 12. Open decisions / risks
 - **Physics values — RESOLVED in M4:** the two-place duplication is gone.

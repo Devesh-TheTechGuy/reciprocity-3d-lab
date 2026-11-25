@@ -24,6 +24,8 @@ export class Engine {
   private readonly timer = new THREE.Timer();
   private readonly updaters: Updater[] = [];
   private composer: FrameComposer | null = null;
+  /** Ceiling on the device pixel ratio, owned by the perf governor. */
+  private pixelRatioCap = 2;
 
   constructor(container: HTMLElement) {
     this.scene = new THREE.Scene();
@@ -37,7 +39,6 @@ export class Engine {
     );
 
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
@@ -45,6 +46,7 @@ export class Engine {
     this.renderer.toneMappingExposure = 1.05;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     container.appendChild(this.renderer.domElement);
+    this.applySize();
 
     this.timer.connect(document);
     window.addEventListener("resize", this.onResize);
@@ -52,6 +54,30 @@ export class Engine {
 
   get canvas(): HTMLCanvasElement {
     return this.renderer.domElement;
+  }
+
+  /** Current device-pixel-ratio cap (set by the perf governor). */
+  get ratioCap(): number {
+    return this.pixelRatioCap;
+  }
+
+  /**
+   * Cap the device pixel ratio and re-allocate the drawing buffer + composer.
+   * Lowering it (e.g. 2 → 1) is the single biggest lever for fill-rate-bound
+   * scenes, since it scales every pass's buffer quadratically.
+   */
+  setPixelRatioCap(cap: number): void {
+    const next = Math.max(0.5, cap);
+    if (next === this.pixelRatioCap) return;
+    this.pixelRatioCap = next;
+    this.applySize();
+  }
+
+  /** Resize the renderer + composer to the window at the current ratio cap. */
+  private applySize(): void {
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, this.pixelRatioCap));
+    this.renderer.setSize(window.innerWidth, window.innerHeight);
+    this.composer?.setSize(window.innerWidth, window.innerHeight);
   }
 
   add(updater: Updater): void {
@@ -68,8 +94,13 @@ export class Engine {
     this.renderer.setAnimationLoop(this.tick);
   }
 
-  dispose(): void {
+  /** Pause the frame loop (QA drives subsystems deterministically while stopped). */
+  stop(): void {
     this.renderer.setAnimationLoop(null);
+  }
+
+  dispose(): void {
+    this.stop();
     window.removeEventListener("resize", this.onResize);
     this.composer?.dispose?.();
     this.renderer.dispose();
@@ -88,8 +119,6 @@ export class Engine {
   private onResize = (): void => {
     this.camera.aspect = window.innerWidth / window.innerHeight;
     this.camera.updateProjectionMatrix();
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    this.renderer.setSize(window.innerWidth, window.innerHeight);
-    this.composer?.setSize(window.innerWidth, window.innerHeight);
+    this.applySize();
   };
 }

@@ -2,6 +2,7 @@ import "./style.css";
 import * as THREE from "three";
 import { Engine } from "./core/engine";
 import { PostFx } from "./core/postfx";
+import { PerfGovernor, type QualityTargets } from "./core/perf";
 import { ROOM, createRoom } from "./scene/room";
 import { createLabTable } from "./scene/labTable";
 import { createLighting } from "./scene/lighting";
@@ -12,6 +13,9 @@ import { WiringTool } from "./interaction/wiringTool";
 import { CameraRig, type CameraMode } from "./interaction/cameraRig";
 import { Hud, type ReadoutView } from "./ui/hud";
 import { ObservationTable } from "./ui/observationTable";
+import { Schematic } from "./ui/schematic";
+import { PerfPanel } from "./ui/perfPanel";
+import { Sfx } from "./audio/sfx";
 import { ExperimentFlow } from "./experiment/flow";
 import type { ResistorSet } from "./experiment/components";
 import {
@@ -35,7 +39,7 @@ engine.scene.add(table.group);
 const kit = createLabKit(table.surfaceY);
 engine.scene.add(kit.group);
 
-createLighting(engine.scene, ROOM);
+const lighting = createLighting(engine.scene, ROOM);
 
 // M5 — HDRI environment: a CC0 Poly Haven studio map, PMREM-filtered into
 // `scene.environment` so every MeshStandardMaterial gets diffuse + specular IBL.
@@ -58,8 +62,32 @@ const postfx = new PostFx({
 });
 engine.setComposer(postfx);
 
+// M5 slice 4 — performance governor. Each preset drives the four knobs that
+// actually cost time here: drawing-buffer resolution (quadratic fill cost),
+// post-FX passes, the sun's shadow map, and MSAA. In `auto` mode the governor
+// steps down when the averaged FPS sags and back up once it recovers.
+const qualityTargets: QualityTargets = {
+  setPixelRatioCap: (cap) => engine.setPixelRatioCap(cap),
+  setShadowMapSize: (size) => {
+    lighting.sun.shadow.mapSize.set(size, size);
+    // Drop the existing depth texture so three re-allocates it at the new size.
+    lighting.sun.shadow.map?.dispose();
+    lighting.sun.shadow.map = null;
+  },
+  setSamples: (samples) => postfx.setSamples(samples),
+  setPasses: (passes) => postfx.setPasses(passes),
+};
+
+const perf = new PerfGovernor(qualityTargets);
+const perfPanel = new PerfPanel({ onMode: (mode) => perf.setMode(mode) });
+perf.onChange(() => perfPanel.update(perf.fps, perf.qualityMode, perf.tierName));
+perfPanel.update(perf.fps, perf.qualityMode, perf.tierName);
+
 // Look at the centre of the kit board; settle the player just in front of it.
 const focus = new THREE.Vector3(0, table.surfaceY + 0.08, -0.04);
+
+// M5 slice 3 — synthesized sound cues (WebAudio; no assets, safe when headless).
+const sfx = new Sfx();
 
 let hud: Hud | undefined;
 const rig = new CameraRig({
@@ -83,7 +111,11 @@ const rig = new CameraRig({
 });
 
 hud = new Hud({
-  onEnterFirstPerson: () => rig.enterFirstPerson(),
+  onEnterFirstPerson: () => {
+    // The click that enters the lab is the user gesture that unlocks audio.
+    sfx.resume();
+    rig.enterFirstPerson();
+  },
   onExitToOrbit: () => rig.exitToOrbit(),
   onResume: () => rig.requestLook(),
 });
@@ -104,6 +136,9 @@ const wiringTool = new WiringTool({
   wiring,
   floorY: table.surfaceY,
   isActive: () => rig.mode === "firstperson",
+  // Sound cues: a banana plug snapping home / a cord being pulled off.
+  onConnect: () => sfx.plug(),
+  onDisconnect: () => sfx.unplug(),
 });
 
 // Drag-to-look must not fight the wiring tool: while a cord is being dragged,
@@ -134,11 +169,17 @@ const observations = new ObservationTable({
   },
 });
 
+// M5 — live 2D wiring schematic on the side, mirroring the physical kit.
+const schematic = new Schematic();
+
 // ---------------------------------------------------------------------------
 // M3 — physics. Solve the live circuit and float the meters off the result.
 // ---------------------------------------------------------------------------
 const circuit: CircuitParams = { ...DEFAULT_CIRCUIT };
 let shownEmf = Number.NaN;
+// Sound-cue edge detection: the last live figure + last displayed ammeter text.
+let lastLiveConfig: "A" | "B" | null = null;
+let lastAmpText = "";
 
 // Reflect the board's starting resistor values in the apparatus selectors.
 observations.setResistors({ r1: circuit.r1, r2: circuit.r2, r3: circuit.r3 });
@@ -167,6 +208,20 @@ function refreshReadings(): void {
   const volts = wired && solution ? solution.voltage : 0;
   const amps = wired && solution ? solution.current * 1000 : 0;
 
+  // Sound cues: a relay clack when the circuit closes (or the figure swaps), and a
+  // tiny meter blip when a reading settles on a new value. Both are no-ops until
+  // audio is unlocked by the "Enter the lab" click.
+  const liveCfg = solution?.config ?? null;
+  const ampText = amps.toFixed(2);
+  if (liveCfg !== lastLiveConfig) {
+    if (liveCfg !== null) sfx.switch();
+    lastLiveConfig = liveCfg;
+    lastAmpText = ampText;
+  } else if (wired && ampText !== lastAmpText) {
+    sfx.tick();
+    lastAmpText = ampText;
+  }
+
   hud?.setReadings({
     config,
     emf: `${circuit.E.toFixed(2)} V`,
@@ -179,6 +234,16 @@ function refreshReadings(): void {
   const view = flow.update(solution, circuit);
   hud?.setPrompt(view.prompt);
   observations.render(view);
+
+  // M5 — the 2D schematic: show the figure being worked towards while the
+  // circuit is open (how to patch), and the live, animated circuit once closed.
+  const lastRow = view.rows[view.rows.length - 1];
+  const wantB =
+    view.state === "recordedA" ||
+    view.state === "needsB" ||
+    (solution?.config === null && lastRow !== undefined && lastRow.iA !== null && lastRow.iB === null);
+  const target: "A" | "B" = solution?.config ?? (wantB ? "B" : "A");
+  schematic.render({ params: circuit, solution, cords: wiring.list(), target });
 }
 
 wiring.onChange(refreshReadings);
@@ -188,6 +253,9 @@ engine.add((delta) => {
   room.update(delta);
   rig.update(delta);
   wiringTool.update(delta);
+  schematic.tick(delta);
+  // Real wall-clock time (not the clamped frame delta) so the FPS average is honest.
+  perf.tick();
 });
 
 engine.start();
@@ -209,6 +277,10 @@ if (import.meta.env.DEV) {
     refreshReadings,
     flow,
     observations,
+    schematic,
+    sfx,
+    perf,
+    perfPanel,
     // QA helpers: apply a resistor set / record a reading without the UI.
     setResistors: (values: ResistorSet) => {
       kit.components.base.setResistors(values);

@@ -29,52 +29,68 @@ export interface PostFxOptions {
  * them once compositing.
  */
 export class PostFx implements FrameComposer {
-  readonly composer: EffectComposer;
-  readonly ssao: SSAOPass;
-  readonly bloom: UnrealBloomPass;
+  composer!: EffectComposer;
+  ssao!: SSAOPass;
+  bloom!: UnrealBloomPass;
 
   private readonly renderer: THREE.WebGLRenderer;
   private readonly scene: THREE.Scene;
   private readonly camera: THREE.PerspectiveCamera;
+  private readonly bloomParams: { strength: number; radius: number; threshold: number };
   private enabled = true;
+  private sampleCount: number;
+  private ssaoEnabled = true;
+  private bloomEnabled = true;
 
   constructor(opts: PostFxOptions) {
     const { renderer, scene, camera } = opts;
     this.renderer = renderer;
     this.scene = scene;
     this.camera = camera;
+    this.sampleCount = opts.samples ?? 4;
+    this.bloomParams = {
+      strength: opts.bloomStrength ?? 0.35,
+      radius: opts.bloomRadius ?? 0.5,
+      threshold: opts.bloomThreshold ?? 1.6,
+    };
+    this.build();
+  }
 
-    const size = renderer.getDrawingBufferSize(new THREE.Vector2());
-    const samples = opts.samples ?? 4;
+  /** (Re)create the composer + passes for the current `sampleCount`. */
+  private build(): void {
+    const size = this.renderer.getDrawingBufferSize(new THREE.Vector2());
     const target = new THREE.WebGLRenderTarget(size.x, size.y, {
       type: THREE.HalfFloatType,
-      ...(samples > 0 ? { samples } : {}),
+      ...(this.sampleCount > 0 ? { samples: this.sampleCount } : {}),
     });
 
-    this.composer = new EffectComposer(renderer, target);
+    this.composer = new EffectComposer(this.renderer, target);
     // The composer was seeded with a physical-pixel target; normalise it to
     // logical size * pixel ratio so `addPass` / `setSize` stay consistent.
+    this.composer.setPixelRatio(this.renderer.getPixelRatio());
     this.composer.setSize(window.innerWidth, window.innerHeight);
 
-    this.composer.addPass(new RenderPass(scene, camera));
+    this.composer.addPass(new RenderPass(this.scene, this.camera));
 
     // AO must follow the RenderPass: in "Default" mode SSAO multiplies its
     // occlusion over whatever already sits in the read buffer.
-    this.ssao = new SSAOPass(scene, camera, size.x, size.y);
+    this.ssao = new SSAOPass(this.scene, this.camera, size.x, size.y);
     // The scene is metre-scale, so the default kernel radius (8 world units) is
     // enormous; keep it small so AO reads as contact shadow in creases.
     this.ssao.kernelRadius = 0.12;
     this.ssao.minDistance = 0.0008;
     this.ssao.maxDistance = 0.045;
     this.ssao.output = SSAOPass.OUTPUT.Default;
+    this.ssao.enabled = this.ssaoEnabled;
     this.composer.addPass(this.ssao);
 
     this.bloom = new UnrealBloomPass(
       new THREE.Vector2(size.x, size.y),
-      opts.bloomStrength ?? 0.35,
-      opts.bloomRadius ?? 0.5,
-      opts.bloomThreshold ?? 1.6,
+      this.bloomParams.strength,
+      this.bloomParams.radius,
+      this.bloomParams.threshold,
     );
+    this.bloom.enabled = this.bloomEnabled;
     this.composer.addPass(this.bloom);
 
     this.composer.addPass(new OutputPass());
@@ -84,9 +100,35 @@ export class PostFx implements FrameComposer {
     return this.enabled;
   }
 
+  get samples(): number {
+    return this.sampleCount;
+  }
+
   /** Toggle the whole chain; when off the engine's plain render is used instead. */
   setEnabled(enabled: boolean): void {
     this.enabled = enabled;
+  }
+
+  /** Enable/disable individual passes (a disabled pass costs nothing to render). */
+  setPasses({ ssao, bloom }: { ssao: boolean; bloom: boolean }): void {
+    this.ssaoEnabled = ssao;
+    this.bloomEnabled = bloom;
+    this.ssao.enabled = ssao;
+    this.bloom.enabled = bloom;
+  }
+
+  /**
+   * Change the MSAA sample count. The composer allocates its render targets at
+   * construction, so the chain is rebuilt; disabled passes are preserved. Kept
+   * behind this method so callers (the perf governor) never see the swap.
+   */
+  setSamples(samples: number): void {
+    if (samples === this.sampleCount) return;
+    this.sampleCount = samples;
+    (this.ssao as { dispose?: () => void }).dispose?.();
+    (this.bloom as { dispose?: () => void }).dispose?.();
+    this.composer.dispose();
+    this.build();
   }
 
   render(delta: number): void {
@@ -107,3 +149,4 @@ export class PostFx implements FrameComposer {
     this.composer.dispose();
   }
 }
+

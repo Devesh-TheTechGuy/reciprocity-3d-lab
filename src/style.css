@@ -395,3 +395,292 @@ button[data-action]:disabled {
   transform: none;
 }
 
+/* ---------------------------------------------------------------------------
+   Live 2D wiring schematic (right side).
+--------------------------------------------------------------------------- */
+.ui-schematic {
+  top: 50%;
+  right: 20px;
+  bottom: auto;
+  left: auto;
+  transform: translateY(-50%);
+  width: 292px;
+  padding: 10px 12px 12px;
+  background: var(--ui-bg);
+  border: 1px solid var(--ui-border);
+  border-radius: 12px;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+  pointer-events: auto;
+}
+
+.ui-schematic-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.ui-schematic-head h3 {
+  margin: 0;
+  font-size: 11px;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  opacity: 0.7;
+}
+
+.ui-schematic-head h3 span {
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: none;
+  color: #3ee06a;
+}
+
+.ui-schematic-head button {
+  font: inherit;
+  font-size: 12px;
+  line-height: 1;
+  color: var(--ui-fg);
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--ui-border);
+  border-radius: 6px;
+  padding: 2px 7px;
+  cursor: pointer;
+}
+
+.ui-schematic-head button:hover {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.ui-schematic--collapsed .ui-schematic-body {
+  display: none;
+}
+
+.ui-schematic-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.sch-board {
+  fill: rgba(255, 255, 255, 0.03);
+  stroke: var(--ui-border);
+  stroke-width: 1;
+}
+
+.sch-wire {
+  fill: none;
+  stroke: #a8822a;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.sch-resistor {
+  fill: none;
+  stroke: #e0b93f;
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.sch-ref {
+  fill: #e0b93f;
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.sch-pin {
+  fill: #9aa4b2;
+  font-size: 9px;
+}
+
+.sch-guide {
+  fill: none;
+  stroke-width: 1.6;
+  stroke-dasharray: 3 4;
+  stroke-linecap: round;
+  opacity: 0.5;
+}
+
+.sch-cord {
+  fill: none;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  opacity: 0.95;
+}
+
+.sch-flow {
+  fill: none;
+  stroke: #eaffff;
+  stroke-width: 2.4;
+  stroke-dasharray: 3 7;
+  stroke-linecap: round;
+  opacity: 0.9;
+}
+
+.sch-ring {
+  fill: none;
+  stroke-width: 1.4;
+}
+
+.sch-ring--guide {
+  stroke: var(--ui-accent);
+  stroke-dasharray: 2 2;
+}
+
+.sch-ring--live {
+  stroke: #3ee06a;
+  opacity: 0.9;
+}
+
+.sch-post {
+  stroke: rgba(0, 0, 0, 0.55);
+  stroke-width: 1;
+}
+
+.sch-instrument rect {
+  fill: rgba(0, 0, 0, 0.3);
+  stroke: var(--ui-border);
+  stroke-width: 1;
+}
+
+.sch-instrument-name {
+  fill: var(--ui-fg);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.sch-instrument-value {
+  fill: #7fe3ff;
+  font-size: 10px;
+  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+
+.sch-instrument-sub {
+  fill: #8a93a3;
+  font-size: 6.5px;
+}
+
+.ui-schematic-legend {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 6px 0 0;
+  font-size: 10px;
+  opacity: 0.7;
+}
+
+.ui-schematic-legend .sch-swatch {
+  display: inline-block;
+  width: 14px;
+  height: 3px;
+  margin-left: 6px;
+  border-radius: 2px;
+}
+
+.ui-schematic-legend .sch-swatch:first-child {
+  margin-left: 0;
+}
+
+.sch-swatch--guide {
+  background: repeating-linear-gradient(90deg, var(--ui-accent) 0 3px, transparent 3px 6px);
+}
+
+.sch-swatch--red {
+  background: #ff6b6b;
+}
+
+.sch-swatch--black {
+  background: #c9cfd8;
+}
+
+.ui-schematic-status {
+  margin: 6px 0 0;
+  font-size: 11px;
+  opacity: 0.85;
+}
+
+.ui-schematic-status strong {
+  color: #3ee06a;
+}
+
+/* ---------------------------------------------------------------------------
+   M5 slice 4 — performance readout + quality switcher (bottom-right).
+   --------------------------------------------------------------------------- */
+.ui-perf {
+  position: absolute;
+  top: auto;
+  left: auto;
+  right: 20px;
+  bottom: 20px;
+  padding: 8px 10px;
+  color: var(--ui-fg);
+  font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+  font-size: 11px;
+  background: var(--ui-bg);
+  border: 1px solid var(--ui-border);
+  border-radius: 10px;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+  pointer-events: auto;
+  opacity: 0.82;
+  transition: opacity 160ms ease;
+}
+
+.ui-perf:hover {
+  opacity: 1;
+}
+
+.ui-perf-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.ui-perf-fps {
+  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  font-size: 12px;
+  font-weight: 700;
+  color: #3ee06a;
+}
+
+.ui-perf-fps--low {
+  color: #ffb347;
+}
+
+.ui-perf-note {
+  font-size: 10px;
+  opacity: 0.7;
+}
+
+.ui-perf-modes {
+  display: flex;
+  gap: 4px;
+}
+
+.ui-perf-modes button {
+  min-width: 34px;
+  padding: 3px 7px;
+  color: var(--ui-fg);
+  font: inherit;
+  font-size: 10px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--ui-border);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.ui-perf-modes button:hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.ui-perf-mode--active {
+  color: #0b0e13;
+  background: var(--ui-accent);
+  border-color: var(--ui-accent);
+  font-weight: 700;
+}
+
