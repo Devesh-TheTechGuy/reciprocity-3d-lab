@@ -32,9 +32,9 @@ flow, the observation table and the verification step.
 | git user.email | `deveshgopal11@gmail.com` |
 | GitHub CLI auth | `gh` authed as `Devesh-TheTechGuy` (keyring, scopes: repo, gist, read:org, workflow) |
 
-**Commit history (pushed):**
+**Commit history (pushed, newest first):**
 ```
-<M3>    (HEAD -> main, origin/main) M3: physics — netlist + MNA solver + live E/V/I readouts
+b1919b0 M3: physics — netlist + MNA solver + live E/V/I readouts
 74fda29 Fix: Paused card stuck on lock (three r187 lock-event order) + drag-to-look fallback
 7ebb710 Keep LICENSE from the initial remote repo
 1430ac4 Add README (overview, controls, structure, roadmap)
