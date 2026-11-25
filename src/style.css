@@ -160,3 +160,63 @@ button[data-action="exit"] {
   color: var(--ui-accent);
 }
 
+/* Live circuit readout panel (M3 physics). */
+.ui-readout {
+  position: absolute;
+  top: 18px;
+  right: 20px;
+  min-width: 216px;
+  padding: 12px 14px;
+  font-size: 12px;
+  background: var(--ui-bg);
+  border: 1px solid var(--ui-border);
+  border-radius: 12px;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+}
+
+.ui-readout h3 {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 0 8px;
+  font-size: 11px;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  opacity: 0.7;
+}
+
+.ui-readout h3 span {
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--ui-fg);
+  opacity: 0.85;
+}
+
+.ui-readout--live h3 span {
+  color: #3ee06a;
+}
+
+.ui-readout dl {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+}
+
+.ui-readout dl > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.ui-readout dt {
+  opacity: 0.7;
+}
+
+.ui-readout dd {
+  margin: 0;
+  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+}
+

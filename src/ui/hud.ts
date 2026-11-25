@@ -7,6 +7,20 @@ export interface HudCallbacks {
   onResume: () => void;
 }
 
+/** Live circuit measurements shown in the top-right readout panel. */
+export interface ReadoutView {
+  /** e.g. "Fig 1(a)" / "Fig 1(b)" / "not wired". */
+  config: string;
+  /** Supply EMF, e.g. "6.00 V". */
+  emf: string;
+  /** Voltmeter reading, e.g. "6.000 V". */
+  volts: string;
+  /** Milliammeter reading, e.g. "20.00 mA". */
+  amps: string;
+  /** Closed-form expectation for the same EMF/network, e.g. "20.00 mA". */
+  theory: string;
+}
+
 /**
  * Screen-space overlay: branding, the intro/paused cards, the first-person
  * crosshair and the control hint bar. Visibility is driven purely by camera
@@ -17,6 +31,8 @@ export class Hud {
   private readonly paused: HTMLElement;
   private readonly crosshair: HTMLElement;
   private readonly hintbar: HTMLElement;
+  private readonly readout: HTMLElement;
+  private readonly readoutFields: Record<keyof ReadoutView, HTMLElement>;
 
   constructor(callbacks: HudCallbacks) {
     const root = document.createElement("div");
@@ -52,6 +68,16 @@ export class Hud {
         &nbsp;&middot;&nbsp; <span>Left-click</span> patch a cord
         &nbsp;&middot;&nbsp; <span>Right-click</span> unplug
       </div>
+
+      <div class="ui-readout" data-role="readout">
+        <h3>Circuit <span data-field="config">not wired</span></h3>
+        <dl>
+          <div><dt>Source E</dt><dd data-field="emf">6.00 V</dd></div>
+          <div><dt>Voltmeter V</dt><dd data-field="volts">0.000 V</dd></div>
+          <div><dt>Ammeter I</dt><dd data-field="amps">0.00 mA</dd></div>
+          <div><dt>Theory I</dt><dd data-field="theory">20.00 mA</dd></div>
+        </dl>
+      </div>
     `;
     document.body.appendChild(root);
 
@@ -59,6 +85,14 @@ export class Hud {
     this.paused = Hud.require(root, "paused");
     this.crosshair = Hud.require(root, "crosshair");
     this.hintbar = Hud.require(root, "hint");
+    this.readout = Hud.require(root, "readout");
+    this.readoutFields = {
+      config: Hud.field(this.readout, "config"),
+      emf: Hud.field(this.readout, "emf"),
+      volts: Hud.field(this.readout, "volts"),
+      amps: Hud.field(this.readout, "amps"),
+      theory: Hud.field(this.readout, "theory"),
+    };
 
     const enter = root.querySelector<HTMLButtonElement>('[data-action="enter"]');
     const exit = root.querySelector<HTMLButtonElement>('[data-action="exit"]');
@@ -91,9 +125,26 @@ export class Hud {
     this.hintbar.classList.toggle("hidden", !playing);
   }
 
+  /** Push the latest circuit measurements into the readout panel. */
+  setReadings(view: ReadoutView): void {
+    this.readoutFields.config.textContent = view.config;
+    this.readoutFields.emf.textContent = view.emf;
+    this.readoutFields.volts.textContent = view.volts;
+    this.readoutFields.amps.textContent = view.amps;
+    this.readoutFields.theory.textContent = view.theory;
+    const live = view.config === "Fig 1(a)" || view.config === "Fig 1(b)";
+    this.readout.classList.toggle("ui-readout--live", live);
+  }
+
   private static require(root: HTMLElement, role: string): HTMLElement {
     const el = root.querySelector<HTMLElement>(`[data-role="${role}"]`);
     if (!el) throw new Error(`HUD element not found: ${role}`);
+    return el;
+  }
+
+  private static field(root: HTMLElement, name: keyof ReadoutView): HTMLElement {
+    const el = root.querySelector<HTMLElement>(`[data-field="${name}"]`);
+    if (!el) throw new Error(`HUD readout field not found: ${name}`);
     return el;
   }
 }

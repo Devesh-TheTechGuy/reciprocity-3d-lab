@@ -10,13 +10,14 @@
 **Project:** browser first-person 3D simulation of the school-lab experiment
 *"To Verify the Reciprocity Theorem"* (Vite + TypeScript + three.js r187).
 
-**Done & pushed:** M0 scaffold, M1 room + camera rig, M2 kit + patch cords + wiring.
+**Done & pushed:** M0 scaffold, M1 room + camera rig, M2 kit + patch cords +
+wiring, the "Paused card never disappears" lock fix (§5), and **M3 physics**
+(netlist + MNA solver + live E/V/I readouts — §5b).
 
-**Done but NOT committed:** a bug fix for *"the centre Paused card never goes
-away when playing"* (4 files modified). It is **verified working** — see §5.
-Nothing else is half-edited.
+**Nothing is half-edited.** `npm run build` is green (29 modules).
 
-**The very next action:** commit + push those 4 files (§6.1), then start M3.
+**The very next action:** start **M4** (§6.2) — the Fig 1(a)→1(b) experiment
+flow, the observation table and the verification step.
 
 ---
 
@@ -33,7 +34,9 @@ Nothing else is half-edited.
 
 **Commit history (pushed):**
 ```
-7ebb710 (HEAD -> main, origin/main) Keep LICENSE from the initial remote repo
+<M3>    (HEAD -> main, origin/main) M3: physics — netlist + MNA solver + live E/V/I readouts
+74fda29 Fix: Paused card stuck on lock (three r187 lock-event order) + drag-to-look fallback
+7ebb710 Keep LICENSE from the initial remote repo
 1430ac4 Add README (overview, controls, structure, roadmap)
 3ff092e M0-M2: scaffold, lab room + first-person camera, reciprocity kit + patch cords + wiring
 ```
@@ -63,11 +66,14 @@ npm run preview  # serve the built bundle
 $env:Path = 'C:\Program Files\GitHub CLI;' + $env:Path
 ```
 
-**Currently running at handoff time:** the Vite dev server **is still running on
-port 5173** (started with `Start-Process npm.cmd … > vite-dev.log`). Temp logs
-`vite-dev.log` / `vite-dev.err.log` exist in the project root and are gitignored
-(`*.log`). Stop it with:
+**Dev server state:** stopped, and `vite-dev*.log` deleted, at handoff time. To
+bring it back up:
 ```powershell
+$env:Path = 'C:\Program Files\nodejs;' + $env:Path
+Set-Location 'd:\Devesh\Devesh 2\Python\ML\Deepseek end Point\reciprocity-3d-lab'
+Start-Process npm.cmd -ArgumentList 'run','dev','--','--port','5173','--strictPort' `
+  -RedirectStandardOutput 'vite-dev.log' -RedirectStandardError 'vite-dev.err.log' -WindowStyle Hidden
+# stop it with:
 Get-NetTCPConnection -LocalPort 5173 -State Listen | Select -Expand OwningProcess -Unique | % { Stop-Process -Id $_ -Force }
 Remove-Item -LiteralPath 'vite-dev.log','vite-dev.err.log' -Force -ErrorAction SilentlyContinue
 ```
@@ -120,9 +126,45 @@ Remove-Item -LiteralPath 'vite-dev.log','vite-dev.err.log' -Force -ErrorAction S
   - `src/cords/verletRope.ts` — position-based cord sim (gravity, damping, table floor).
   - `src/state/wiring.ts` — live wiring graph + `detectConfig()` → `"A" | "B" | null`.
   - `src/interaction/wiringTool.ts` — raycast pick / drag / snap wiring.
-- [ ] **M3 physics** (next) — circuit graph + MNA solver, live E / I_A / I_B readouts.
-- [ ] **M4 experiment flow** — Fig 1(a)→1(b) state machine, observation table, verify.
+- [x] **M3 physics** — circuit graph + MNA solver + live E / V / I readouts:
+  - `src/physics/netlist.ts` — the static Fig-1 T-network (rail bus T2–T5–T4,
+    R1/R2/R3) plus every patch cord as an ideal wire; a union-find collapses each
+    0 Ω group into one electrical node and returns `{ nodeOf, nodeCount,
+    resistors, sources, meters }`. Exports `CircuitParams` / `DEFAULT_CIRCUIT`
+    (E=6 V, R1=R2=R3=100 Ω — must mirror `kitBase.DEFAULT_RESISTORS`).
+  - `src/physics/mna.ts` — Modified Nodal Analysis. Resistors → conductances; the
+    supply **and** the milliammeter (an ideal 0 Ω sense branch) each add a branch
+    current unknown; the reference node is `E-`; nodes on other islands read 0 V;
+    solved with a hand-written Gaussian elimination + partial pivoting (no new
+    deps). Returns `null` on a singular system.
+  - `src/physics/index.ts` — `solveCircuit(wiring, params)` → `{ config,
+    nodeVoltage, voltage, current, sourceCurrent }`; plus closed-form helpers
+    `theoreticalCurrent` (`E·R3 / (R1R2+R2R3+R1R3)`) and `theoreticalResistance`.
+  - `src/ui/hud.ts` — top-right **Circuit** readout panel (`config` / `emf` /
+    `volts` / `amps` / `theory`), `setReadings()`, `.ui-readout--live` glow.
+  - `src/main.ts` — `refreshReadings()` runs on `wiring.onChange` and drives
+    `supply.setVoltage`, `voltmeter.setReading`, `milliammeter.setReading`; the
+    physics API is exposed on `window.lab` for QA.
+- [ ] **M4 experiment flow** (next) — Fig 1(a)→1(b) state machine, observation table, verify.
 - [ ] **M5 polish** — HDRI, post-FX, sound, perf pass.
+
+**Verified for M3 (this session):** `npx tsc --noEmit` clean; `npm run build`
+clean (29 modules). With the dev-only `window.lab` hook, driving `wiring.add(...)`
+and re-solving gave (all values redisplayed live in the HUD panel):
+
+| wiring | `config` | V | I (mA) | source I (mA) | V(C1) |
+| --- | --- | --- | --- | --- | --- |
+| (nothing) | `null` | 0.000 | 0.00 | 0 | 0 |
+| Fig 1(a) E/V→T1/T2, mA→T3/T4 | `A` | 6.000 | **20.00** | 40 | 2.000 |
+| Fig 1(b) mA→T1/T2, E/V→T3/T4 | `B` | 6.000 | **20.00** | 40 | 2.000 |
+| asymmetric R1=110, R2=330, R3=220, E=9 (1a) | `A` | 9.000 | **14.876033** | — | 4.909091 |
+| asymmetric (1b) | `B` | 9.000 | **14.876033** | — | 1.636364 |
+
+→ the solver's branch current exactly equals `theoreticalCurrent = E·R3/(R1R2+R2R3+R1R3)`
+(6·100/30000 = 20 mA; 9·220/133100 = 14.876033 mA) and **I_A = I_B** for both the
+balanced and the asymmetric network — reciprocity confirmed numerically. An
+incomplete circuit (source only, no meters) returns `config = null`, 0 mA and does
+**not** throw. Console: 0 errors / 0 warnings.
 
 **Verified for M2 (earlier in this session):** `tsc` clean; `npm run build` clean
 (26 modules, ~601 kB / ~151 kB gzip); console 0 errors/0 warnings; 12 terminals
@@ -131,7 +173,7 @@ all 6 connections and `detectConfig() === "A"`; cords render and drape.
 
 ---
 
-## 5. UNCOMMITTED WORK — the "Paused card never disappears" fix (VERIFIED)
+## 5. The "Paused card never disappears" fix (COMMITTED — `74fda29`)
 
 **User report:** *"this centre box doesnt go when i start playing and moving."*
 The player could walk (WASD) but the centred **"Paused"** card stayed on screen.
@@ -186,43 +228,60 @@ after : { isLocked:true,  pausedHidden:true,  crosshairHidden:false, hintHidden:
 ```
 → the card hides, crosshair + hint appear. `npx tsc --noEmit` = **clean**.
 
-**Status: fixed & verified, but NOT yet committed/pushed.**
+**Status: fixed, verified and committed as `74fda29` (also added `PROGRESS.md`).**
+
+---
+
+## 5b. M3 physics — how the solver models the experiment
+
+```
+T1 ──R1── C1 ──R2── T3        terminals  T1 C1 T3 (top)   T2 T5 T4 (bottom rail)
+             │                            E+ E-  V+ V-  mA+ mA-
+            R3
+             │                Static board: rail bus T2–T5–T4 (0 Ω), R1/R2/R3 branches.
+T2 ───────── T5 ───────── T4   Patch cords: each cord is a 0 Ω wire → merges nodes.
+```
+
+- **Conventions:** voltage source `E` between `E+`(+) and `E-`(−); **milliammeter =
+  an ideal 0 Ω sense branch** between `mA+` and `mA-` whose branch current *is* the
+  reading; **voltmeter = open** (reading is `V(V+) − V(V-)`, draws no current).
+- **Reference node** is `E-`'s node (the rail when wired). Nodes not galvanically
+  connected to it are floating → they simply read 0 V (no singular matrix).
+- **Why `I_A = I_B`:** with `E` across a port and the ammeter shorting the other
+  port, both arrangements reduce to `R1` in series with `R2∥R3`, so the shared
+  branch current is `E·R3/(R1R2+R2R3+R1R3)` — independent of which port the source
+  drives. That identity is exactly what the solver reproduces (see §4 table).
+- `solveCircuit` returns `null` only on a singular system; `main.ts` then shows
+  0.000 V / 0.00 mA on the DMMs and "not wired" in the panel.
 
 ---
 
 ## 6. What I was doing / about to do
 
-### 6.1 IMMEDIATE next actions (in order)
-```powershell
-$env:Path = 'C:\Program Files\nodejs;' + $env:Path
-Set-Location 'd:\Devesh\Devesh 2\Python\ML\Deepseek end Point\reciprocity-3d-lab'
+### 6.1 Already done this session
+`npm run build` (green) → committed the lock fix + `PROGRESS.md` as `74fda29` and
+pushed → stopped the dev server + deleted `vite-dev*.log` → implemented M3
+(§4/§5b), verified it end-to-end (§4), then committed + pushed.
 
-npm run build        # reconfirm tsc+build (last tsc run was clean)
+### 6.2 Next: M4 — the experiment flow (state machine + observation table)
+Goal: walk the student through Fig 1(a) → Fig 1(b) and *prove* reciprocity.
+1. `src/experiment/flow.ts` — a small state machine keyed off `wiring.detectConfig()`
+   (`idle → figA-wired → record-A → figB-wired → record-B → verified`), with a
+   check that the source EMF is held constant between the two readings.
+2. `src/ui/observationTable.ts` — on-screen table (Obs., EMF E, Ammeter I, and an
+   `I_A = I_B?` verdict), an "add observation" button, and a **Reveal / theory**
+   toggle that shows `I = E·R3/(R1R2+R2R3+R1R3)` next to the measured value.
+3. Wire it into `main.ts`: subscribe to `wiring.onChange` (already there), snapshot
+   `solveCircuit(...)` when a valid config is wired, and block "record" until
+   `solution.config` is non-null.
+4. Optional: let the student turn the supply knob (already has `setVoltage`) and
+   re-solve, so `E` can be varied and the table can hold several rows.
+5. Acceptance: with E=6 V, R=100 Ω the table fills 20.00 mA for both (a) and (b)
+   and prints "verified"; changing E scales both rows identically.
 
-git add -A
-git commit -m "Fix: Paused card stuck on lock (three r187 lock-event order) + drag-to-look fallback"
-git push             # origin/main, already configured
-```
-Then stop the dev server and delete `vite-dev*.log` (see §2).
-
-*Suggested commit body:* the HUD now uses the lock value passed by the rig
-(PointerLockControls fires `lock` before `isLocked` flips); the Paused card is clickable
-(resume); added `pointerlockerror` handling, a drag-to-look fallback (`lookBy`) guarded
-against the wiring tool, and walking no longer requires pointer lock.
-
-### 6.2 Then: M3 — physics (next milestone)
-Goal: live, physically-accurate `E`, `I_A`, `I_B` on the supply + DMMs.
-1. `src/physics/netlist.ts` — turn the kit's built-in wiring + `WiringState` edges into a
-   node/branch graph (union-find terminal ids into electrical nodes).
-2. `src/physics/mna.ts` — Modified Nodal Analysis: voltage source E gets an extra current
-   unknown, resistors become conductances, the ammeter is an ideal 0 Ω sense branch; solve
-   `G·x = b` with a small hand-written Gaussian elimination (no new deps).
-3. `src/physics/index.ts` — `solveCircuit(wiring, { E, R1, R2, R3 })` → node voltages +
-   branch currents (`I_A` = mA branch current in config A, else `I_B`).
-4. Drive `supply.setVoltage(E)` / `voltmeter.setReading(E)` / `milliammeter.setReading(I)`.
-5. Cross-check closed form: `I_A = I_B = E·R3 / (R1R2 + R2R3 + R1R3)`;
-   `R_T = (R1R2 + R2R3 + R1R3) / R3`.
-6. Sanity value: `E = 6 V`, `R1 = R2 = R3 = 100 Ω` → `I = 6·100/30000 = 0.02 A = 20 mA`.
+### 6.3 Deferred / nice-to-have
+- Add `reciprocity-3d-lab/` to the **outer** repo's `.gitignore` (nested-repo noise).
+- M5 polish: HDRI, post-FX, sound, perf pass.
 
 ---
 
@@ -279,9 +338,18 @@ T2 (rail) ────────  T5 ────────  T4 (rail)     �
 - Every connect/disconnect flows through `WiringState.add/find/remove` → `detectConfig()`.
 
 ## 10. Dev hooks & QA recipes
-Dev builds expose `window.lab = { engine, kit, rig, table, wiring, wiringTool }` (stripped
-from production by `import.meta.env.DEV`). Useful calls:
+Dev builds expose
+`window.lab = { engine, kit, rig, table, wiring, wiringTool, circuit, solveCircuit,
+theoreticalCurrent, refreshReadings }` (stripped from production by
+`import.meta.env.DEV`). Useful calls:
 - `lab.kit.terminalsById['T1'].worldPosition()`, `lab.wiring.list()`, `lab.wiring.detectConfig()`
+- **physics:** `lab.solveCircuit(lab.wiring, lab.circuit)` → `{ config, nodeVoltage,
+  voltage, current, sourceCurrent }`; `lab.theoreticalCurrent(lab.circuit)`;
+  mutate `lab.circuit.E/r1/r2/r3` then `lab.refreshReadings()`.
+- **Fast Fig-1(a) wiring without dragging:** `lab.wiring.clear()` then
+  `lab.wiring.add("E+","T1"); lab.wiring.add("E-","T2"); lab.wiring.add("V+","T1");
+  lab.wiring.add("V-","T2"); lab.wiring.add("mA+","T3"); lab.wiring.add("mA-","T4")`
+  → `detectConfig() === "A"`, panel shows 6.000 V / 20.00 mA.
 - Enter FP in headless: click **"Enter the lab"**, wait ~2.5 s, then set the camera
   manually — `lab.engine.camera.position.set(0,1.95,0.72); lab.engine.camera.lookAt(0,1.0,-0.05)`
   (the rig won't fight you while unlocked). Hide the overlay card by finding
@@ -297,19 +365,26 @@ from production by `import.meta.env.DEV`). Useful calls:
 ## 11. Screenshots taken this session
 In `C:\Users\Devesh Gupta\AppData\Local\Programs\Microsoft VS Code\.playwright-mcp\`:
 `m2-overview.png`, `m2-fp-1.png`, `m2-fp-2.png`, `m2-kit-closeup.png`, `m2-kit-top.png`,
-`m2-kit-top-2.png`, `m2-cords-figA.png`, `m2-final-spawn.png`.
+`m2-kit-top-2.png`, `m2-cords-figA.png`, `m2-final-spawn.png`,
+`m3-readout-panel.png` (the new Circuit readout panel for Fig 1(a): 6.000 V / 20.00 mA).
 
 ## 12. Open decisions / risks
+- **Physics values must stay in sync:** `physics.DEFAULT_CIRCUIT` (numeric Ω) mirrors
+  `kitBase.DEFAULT_RESISTORS` (the `"100 Ω"` silk-screen strings). If M4 lets the
+  student swap resistors, update *both* (`createLabKit(surfaceY, values)` already
+  takes the display strings).
+- `solveCircuit` treats the milliammeter as an **ideal 0 Ω** branch and the voltmeter
+  as **open** — no meter burden resistance. Fine for this experiment; if realism is
+  wanted later, give the ammeter e.g. 1 Ω and the voltmeter e.g. 10 MΩ.
+- The voltmeter reading is **signed** (`V(V+) − V(V-)`); a reversed connection shows a
+  negative value, like a real DMM. Only the ammeter is reported as a magnitude.
 - The GitHub repo is **PUBLIC** (the user's pre-existing one). Make it private with
   `gh repo edit Devesh-TheTechGuy/reciprocity-3d-lab --visibility private` if desired.
 - Pointer lock inside VS Code *Simple Browser / Live Preview* iframes can be refused — the
-  new drag-to-look fallback covers that, but the preferred surface is a normal browser tab
+  drag-to-look fallback covers that, but the preferred surface is a normal browser tab
   at `http://localhost:5173`.
 - `docs/reference/*.py` (PDF extractors) + `pdf_content.txt` + `figures/fig1a.jpg`,
   `fig1b.jpg` are committed as the source-of-truth for the experiment — do not delete.
-- `PROGRESS.md` (this file) is new and **uncommitted**; commit it together with the fix.
-
-
 
 ---
 

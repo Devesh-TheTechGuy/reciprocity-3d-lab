@@ -8,7 +8,13 @@ import { createLabKit } from "./kit";
 import { WiringState } from "./state/wiring";
 import { WiringTool } from "./interaction/wiringTool";
 import { CameraRig, type CameraMode } from "./interaction/cameraRig";
-import { Hud } from "./ui/hud";
+import { Hud, type ReadoutView } from "./ui/hud";
+import {
+  DEFAULT_CIRCUIT,
+  solveCircuit,
+  theoreticalCurrent,
+  type CircuitParams,
+} from "./physics";
 
 const container = document.querySelector<HTMLDivElement>("#app");
 if (!container) throw new Error("#app container not found");
@@ -78,6 +84,48 @@ const wiringTool = new WiringTool({
 // the wiring tool owns the gesture.
 rig.isOtherDragging = () => wiringTool.isDragging;
 
+// ---------------------------------------------------------------------------
+// M3 — physics. Solve the live circuit and float the meters off the result.
+// ---------------------------------------------------------------------------
+const circuit: CircuitParams = { ...DEFAULT_CIRCUIT };
+let shownEmf = Number.NaN;
+
+function refreshReadings(): void {
+  const solution = solveCircuit(wiring, circuit);
+  const wired = solution !== null && solution.config !== null;
+  const theory = theoreticalCurrent(circuit);
+
+  // The supply's own window always shows its set value.
+  if (circuit.E !== shownEmf) {
+    kit.components.supply.setVoltage(circuit.E);
+    shownEmf = circuit.E;
+  }
+
+  if (solution && wired) {
+    kit.components.voltmeter.setReading(solution.voltage.toFixed(3));
+    kit.components.milliammeter.setReading((solution.current * 1000).toFixed(2));
+  } else {
+    kit.components.voltmeter.setReading("0.000");
+    kit.components.milliammeter.setReading("0.00");
+  }
+
+  const config: ReadoutView["config"] =
+    solution?.config === "A" ? "Fig 1(a)" : solution?.config === "B" ? "Fig 1(b)" : "not wired";
+  const volts = wired && solution ? solution.voltage : 0;
+  const amps = wired && solution ? solution.current * 1000 : 0;
+
+  hud?.setReadings({
+    config,
+    emf: `${circuit.E.toFixed(2)} V`,
+    volts: `${volts.toFixed(3)} V`,
+    amps: `${amps.toFixed(2)} mA`,
+    theory: `${(theory * 1000).toFixed(2)} mA`,
+  });
+}
+
+wiring.onChange(refreshReadings);
+refreshReadings();
+
 engine.add((delta) => {
   room.update(delta);
   rig.update(delta);
@@ -88,5 +136,16 @@ engine.start();
 
 // Dev-only handle for debugging / automated screenshots (stripped from builds).
 if (import.meta.env.DEV) {
-  (window as unknown as { lab?: unknown }).lab = { engine, kit, rig, table, wiring, wiringTool };
+  (window as unknown as { lab?: unknown }).lab = {
+    engine,
+    kit,
+    rig,
+    table,
+    wiring,
+    wiringTool,
+    circuit,
+    solveCircuit,
+    theoreticalCurrent,
+    refreshReadings,
+  };
 }
