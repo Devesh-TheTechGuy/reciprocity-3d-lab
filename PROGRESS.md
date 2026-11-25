@@ -41,7 +41,7 @@ and the touch fallback; finally `git push` all M5 commits.
 **Commit history (newest first).** `origin/main` is at **`4cd0ecb`**; the two M5
 commits above it are **local-only** until pushed:
 ```
-8320dfe M5 slice 2: HDRI environment (HDRLoader + PMREM IBL) + exposure rebalance   [local]
+11f9d8b M5 slice 2: HDRI environment (HDRLoader + PMREM IBL) + exposure rebalance   [local]
 cd9cd3f M5 slice 1: post-FX (EffectComposer + SSAO + bloom + OutputPass) + lighting rebalance   [local]
 4cd0ecb docs: record M4 (flow + Table 1 + resistor swap) in PROGRESS   [origin/main]
 9f7c33c M4: experiment flow + Table 1 observation table + resistor-value swap
