@@ -105,6 +105,16 @@ Remove-Item -LiteralPath 'vite-dev.log','vite-dev.err.log' -Force -ErrorAction S
 - **Editor tool** caps a single `new_text` at ~6000 chars → split big files.
 - Playwright (**headless**) does **not** support the Pointer Lock API — that is an
   environment limitation, not an app bug. The app now degrades gracefully (§5).
+  It **does** support `element.requestPointerLock` in a *focused* context, so run
+  desktop wiring checks in a fresh context (a backgrounded tab throttles rAF and
+  the enter transition stalls in `transition`).
+- **CDP touch emulation loses its coordinates after a long hold:** once
+  `Input.dispatchTouchEvent` has held a point past ~0.5 s, every later pointer's
+  `clientX/clientY` arrive as **0, 0** (the app reads the event correctly — the
+  emulator stops reporting). Timers that only need a duration (the 450 ms
+  long-press unplug) are fine, but any follow-up step that needs a *position*
+  must be driven with synthetic `PointerEvent`s carrying explicit coordinates —
+  see §5i.
 - Playwright screenshots must be written under
   `C:\Users\Devesh Gupta\AppData\Local\Programs\Microsoft VS Code\.playwright-mcp\`
   (that is the allowed root; other paths are rejected).
