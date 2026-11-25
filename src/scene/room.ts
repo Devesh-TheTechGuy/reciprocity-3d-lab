@@ -167,7 +167,7 @@ export function createRoom(): Room {
   const tubeMat = new THREE.MeshStandardMaterial({
     color: 0xffffff,
     emissive: 0xfff3dc,
-    emissiveIntensity: 2.2,
+    emissiveIntensity: 3.4,
     roughness: 0.3,
   });
   for (const z of [-2.2, 0, 2.2]) {
@@ -186,7 +186,7 @@ export function createRoom(): Room {
     tube.position.y = -0.06;
     fixture.add(tube);
 
-    const glow = new THREE.PointLight(0xfff1dc, 9, 9, 2);
+    const glow = new THREE.PointLight(0xfff1dc, 4.5, 9, 2);
     glow.position.set(0, -0.35, 0);
     fixture.add(glow);
 

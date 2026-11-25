@@ -12,13 +12,15 @@
 
 **Done & pushed:** M0 scaffold, M1 room + camera rig, M2 kit + patch cords +
 wiring, the "Paused card never disappears" lock fix (§5), **M3 physics**
-(netlist + MNA solver + live E/V/I readouts — §5b), and **M4 experiment flow**
-(Fig 1(a)→1(b) state machine, Table 1 + verification, runtime resistor swap — §5c).
+(netlist + MNA solver + live E/V/I readouts — §5b), the **M4 experiment flow**
+(Fig 1(a)→1(b) state machine, Table 1 + verification, runtime resistor swap — §5c),
+and **M5 slice 1: post-FX** (EffectComposer + SSAO + bloom + OutputPass, MSAA
+buffers, lighting/exposure rebalance — §5d).
 
-**Nothing is half-edited.** `npm run build` is green (32 modules).
+**Nothing is half-edited.** `npm run build` is green (46 modules).
 
-**The very next action:** start **M5** (§6.3) — polish: HDRI, post-FX, sound,
-perf pass.
+**The very next action:** **M5 slice 2 — HDRI environment** (§6.3), then sound,
+perf pass, touch fallback.
 
 ---
 
@@ -165,7 +167,16 @@ Remove-Item -LiteralPath 'vite-dev.log','vite-dev.err.log' -Force -ErrorAction S
     `DEFAULT_RESISTOR_SET` (the two-place duplication is gone).
   - `src/ui/hud.ts` (`setPrompt`), `src/main.ts` (flow + table wiring, dev hooks),
     `src/style.css` (`.ui-prompt`, `.ui-apparatus`, `.ui-observations`).
-- [ ] **M5 polish** (next) — HDRI, post-FX, sound, perf pass.
+- [ ] **M5 polish** (in progress) — HDRI, post-FX, sound, perf pass.
+  - [x] **M5 slice 1 — post-FX** (this session): `src/core/postfx.ts`
+        (`RenderPass → SSAOPass → UnrealBloomPass → OutputPass`, MSAA half-float
+        buffers, `setEnabled`), `core/engine.ts` gained a `FrameComposer` hook,
+        `main.ts` installs it; plus a lighting/exposure rebalance (dimmer point
+        lights, brighter tube emissive) so bloom separates from lit surfaces.
+  - [ ] M5 slice 2 — HDRI environment (+ PMREM).
+  - [ ] M5 slice 3 — sound cues (synthesized WebAudio).
+  - [ ] M5 slice 4 — performance pass.
+  - [ ] M5 slice 5 — mobile/touch fallback.
 
 **Verified for M3 (this session):** `npx tsc --noEmit` clean; `npm run build`
 clean (29 modules). With the dev-only `window.lab` hook, driving `wiring.add(...)`
@@ -319,6 +330,56 @@ wire Fig 1(b) ──► record I_B ──┘
 
 ---
 
+## 5d. M5 slice 1 — post-FX (EffectComposer + SSAO + bloom + OutputPass)
+
+```
+RenderPass ─► SSAOPass ─► UnrealBloomPass ─► OutputPass ─► screen
+  beauty        AO x beauty     glow           ACES + sRGB
+```
+
+- **`src/core/postfx.ts`** — `PostFx implements FrameComposer`. Builds an
+  `EffectComposer` seeded with a **half-float, `samples: 4`** render target (the
+  composer's buffers are *not* the canvas, so `renderer.antialias` no longer
+  covers edges → MSAA is provided by the target). Pass order is fixed:
+  `RenderPass → SSAOPass → UnrealBloomPass → OutputPass`. Exposes `ssao`,
+  `bloom`, `setEnabled(bool)`, `setSize()`, `dispose()`, and `isEnabled`.
+- **Why the single `OutputPass`:** three r187 applies ACES tone mapping and the
+  sRGB encode **only when rendering to the default framebuffer**
+  (`currentRenderTarget === null` — verified in `three.module.js`). The composer
+  renders into half-float targets (linear), so `OutputPass` performs the tone map
+  + colour-space conversion exactly once, reading `renderer.toneMapping` /
+  `toneMappingExposure` / `outputColorSpace`. (`renderer.toneMapping` stays
+  `ACESFilmicToneMapping`; nothing is double-applied.)
+- **Why SSAO comes after RenderPass:** in its default output mode `SSAOPass`
+  *multiplies* its occlusion over whatever is already in the read buffer
+  (`needsSwap = false`), so a `RenderPass` must precede it. The scene is
+  metre-scale, so the kernel is tiny (`kernelRadius 0.12`, `minDistance 0.0008`,
+  `maxDistance 0.045`) — the three.js default radius of `8` world units would
+  smear across the whole room.
+- **Engine hook:** `core/engine.ts` gained `FrameComposer { render(delta);
+  setSize(w,h); dispose?() }` + `Engine.setComposer(fx)`. `tick()` renders
+  through the composer when present, else the plain `renderer.render()`;
+  `onResize` forwards to `composer.setSize`. `main.ts` builds `PostFx` after the
+  lighting and calls `engine.setComposer(postfx)`; the object is on `window.lab`
+  (`lab.postfx`).
+- **Lighting/exposure rebalance (needed for bloom to read well):** the point-lit
+  kit board was *brighter* than the emissive tubes, so no bloom threshold could
+  separate them and the board blew out. Rebalanced in `scene/lighting.ts`
+  (hemisphere `0.85 → 0.5`, sun `2.6 → 1.7`) and `scene/room.ts` (tube
+  `emissiveIntensity 2.2 → 3.4`, fixture point light `9 → 4.5`). Bloom defaults
+  are now **strength 0.35 / radius 0.5 / threshold 1.6**, so only genuinely bright
+  emitters (tube fixtures, gold trim, meter bodies) bloom; windows and walls do not.
+- **Verified (headless):** `npx tsc --noEmit` = 0; `npm run build` = 0
+  (46 modules); console **0 errors / 0 warnings**. A/B screenshots (post-FX off vs
+  on) isolated the earlier over-bloom to the bloom pass alone; after the rebalance
+  the board reads beige, the tubes glow softly and the windows stay clean.
+  Resize verified: at 1024×640 the composer RTs and `SSAOPass` resize to 1024×640
+  with `samples` still 4. Screenshots: `m5-postfx-kit-on/off.png`,
+  `m5-postfx-ssao-only.png`, `m5-lit-board.png`, `m5-lit-ceiling.png`,
+  `m5-lit-spawn.png`, `m5-lit-overview.png`, `m5-lit-resized.png`.
+
+---
+
 ## 6. What I was doing / about to do
 
 ### 6.1 Already done this session
@@ -333,7 +394,15 @@ The flow + table shipped exactly as described in §4/§5c: `ExperimentFlow` keye
 from `main.ts`'s `refreshReadings()`.
 
 ### 6.3 Next: M5 — polish, and the deferred items
-- **M5 polish:** HDRI environment, post-FX, sound, perf pass.
+- **M5 slice 1 (post-FX) — DONE this session** (see §5d): EffectComposer +
+  SSAO + bloom + OutputPass, MSAA buffers, lighting/exposure rebalance.
+- **M5 slice 2 (next): HDRI environment** — fetch a 1–2k Poly Haven HDR into
+  `public/assets/`, set `scene.environment` via `PMREMGenerator`, and probably
+  `scene.background`; re-check exposure after.
+- **M5 slice 3:** sound cues (synthesized WebAudio: plug/unplug, meter tick, switch).
+- **M5 slice 4:** performance pass (profile; consider DPR cap, AO/bloom toggles,
+  MSAA `samples`, shadow map size).
+- **M5 slice 5:** mobile/touch fallback.
 - **Deferred:** add `reciprocity-3d-lab/` to the **outer** repo's `.gitignore`
   (nested-repo noise) — not done (would touch a different repo).
 - **Optional realism:** give the meters a burden resistance (ammeter ≈1 Ω, voltmeter
@@ -395,9 +464,10 @@ T2 (rail) ────────  T5 ────────  T4 (rail)     �
 
 ## 10. Dev hooks & QA recipes
 Dev builds expose
-`window.lab = { engine, kit, rig, table, wiring, wiringTool, circuit, solveCircuit,
-theoreticalCurrent, refreshReadings, flow, observations, setResistors,
-recordObservation }` (stripped from production by `import.meta.env.DEV`). Useful calls:
+`window.lab = { engine, kit, postfx, rig, table, wiring, wiringTool, circuit,
+solveCircuit, theoreticalCurrent, refreshReadings, flow, observations,
+setResistors, recordObservation }` (stripped from production by
+`import.meta.env.DEV`). Useful calls:
 - `lab.kit.terminalsById['T1'].worldPosition()`, `lab.wiring.list()`, `lab.wiring.detectConfig()`
 - **physics:** `lab.solveCircuit(lab.wiring, lab.circuit)` → `{ config, nodeVoltage,
   voltage, current, sourceCurrent }`; `lab.theoreticalCurrent(lab.circuit)`;

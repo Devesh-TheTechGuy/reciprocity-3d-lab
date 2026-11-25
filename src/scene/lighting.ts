@@ -20,10 +20,10 @@ export interface Lighting {
  * the interior instead of being blocked by the shell geometry.
  */
 export function createLighting(scene: THREE.Scene, room: RoomSize): Lighting {
-  const hemisphere = new THREE.HemisphereLight(0xfff4e2, 0x6b4a2b, 0.85);
+  const hemisphere = new THREE.HemisphereLight(0xfff4e2, 0x6b4a2b, 0.5);
   scene.add(hemisphere);
 
-  const sun = new THREE.DirectionalLight(0xfff0d0, 2.6);
+  const sun = new THREE.DirectionalLight(0xfff0d0, 1.7);
   sun.position.set(-6, room.height + 3.5, -7);
   sun.castShadow = true;
   sun.shadow.mapSize.set(2048, 2048);

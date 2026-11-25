@@ -1,6 +1,7 @@
 import "./style.css";
 import * as THREE from "three";
 import { Engine } from "./core/engine";
+import { PostFx } from "./core/postfx";
 import { ROOM, createRoom } from "./scene/room";
 import { createLabTable } from "./scene/labTable";
 import { createLighting } from "./scene/lighting";
@@ -34,6 +35,14 @@ const kit = createLabKit(table.surfaceY);
 engine.scene.add(kit.group);
 
 createLighting(engine.scene, ROOM);
+
+// M5 — post-FX: SSAO + bloom, tone-mapped and encoded once by the OutputPass.
+const postfx = new PostFx({
+  renderer: engine.renderer,
+  scene: engine.scene,
+  camera: engine.camera,
+});
+engine.setComposer(postfx);
 
 // Look at the centre of the kit board; settle the player just in front of it.
 const focus = new THREE.Vector3(0, table.surfaceY + 0.08, -0.04);
@@ -174,6 +183,7 @@ if (import.meta.env.DEV) {
   (window as unknown as { lab?: unknown }).lab = {
     engine,
     kit,
+    postfx,
     rig,
     table,
     wiring,
