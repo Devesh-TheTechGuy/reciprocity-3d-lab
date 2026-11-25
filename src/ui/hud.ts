@@ -32,6 +32,7 @@ export class Hud {
   private readonly crosshair: HTMLElement;
   private readonly hintbar: HTMLElement;
   private readonly readout: HTMLElement;
+  private readonly prompt: HTMLElement;
   private readonly readoutFields: Record<keyof ReadoutView, HTMLElement>;
 
   constructor(callbacks: HudCallbacks) {
@@ -61,6 +62,7 @@ export class Hud {
         <button type="button" data-action="exit">Back to overview</button>
       </div>
 
+      <div class="ui-prompt" data-role="prompt"></div>
       <div class="ui-crosshair" data-role="crosshair"></div>
       <div class="ui-hintbar" data-role="hint">
         <span>W A S D</span> move &nbsp;&middot;&nbsp; <span>Shift</span> run
@@ -86,6 +88,7 @@ export class Hud {
     this.crosshair = Hud.require(root, "crosshair");
     this.hintbar = Hud.require(root, "hint");
     this.readout = Hud.require(root, "readout");
+    this.prompt = Hud.require(root, "prompt");
     this.readoutFields = {
       config: Hud.field(this.readout, "config"),
       emf: Hud.field(this.readout, "emf"),
@@ -123,6 +126,12 @@ export class Hud {
     this.paused.classList.toggle("hidden", !(isFp && !active));
     this.crosshair.classList.toggle("hidden", !playing);
     this.hintbar.classList.toggle("hidden", !playing);
+  }
+
+  /** Show the next step of the experiment (e.g. "rewire as Fig 1(b)"). */
+  setPrompt(text: string): void {
+    this.prompt.textContent = text;
+    this.prompt.classList.toggle("hidden", text.length === 0);
   }
 
   /** Push the latest circuit measurements into the readout panel. */

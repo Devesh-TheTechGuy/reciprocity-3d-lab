@@ -1,8 +1,15 @@
 import * as THREE from "three";
-import { matBrass, matCeramic, makeNameplate } from "./materials";
+import { matBrass, matCeramic, makeNameplate, makeTextTexture } from "./materials";
 
 /** Colour-band codes, purely cosmetic (identifies an axial resistor at a glance). */
 const BAND_COLORS = [0x8a5a2b, 0x000000, 0xd23b3b]; // brown, black, red
+
+/** A resistor unit plus a hook to relabel it when its value changes. */
+export interface ResistorUnit {
+  group: THREE.Group;
+  /** Repaint the nameplate ("R1 = 220 Ω") without rebuilding the geometry. */
+  setValue(valueText: string): void;
+}
 
 /**
  * An axial wire-wound resistor lying along local +X, spanning exactly `length`
@@ -12,7 +19,7 @@ export function createResistorUnit(
   label: string,
   valueText: string,
   length: number,
-): THREE.Group {
+): ResistorUnit {
   const group = new THREE.Group();
   group.name = `resistor:${label}`;
 
@@ -64,5 +71,14 @@ export function createResistorUnit(
   plate.position.set(0, radius + 0.004, 0.055);
   group.add(plate);
 
-  return group;
+  const material = plate.material as THREE.MeshBasicMaterial;
+
+  return {
+    group,
+    setValue(next: string): void {
+      material.map?.dispose();
+      material.map = makeTextTexture([label, next], { bg: "#f5f1e6" });
+      material.needsUpdate = true;
+    },
+  };
 }

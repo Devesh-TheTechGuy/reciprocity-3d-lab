@@ -220,3 +220,178 @@ button[data-action="exit"] {
   font-variant-numeric: tabular-nums;
 }
 
+/* Next-step guidance (M4 experiment flow). */
+.ui-prompt {
+  position: absolute;
+  top: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: min(520px, calc(100vw - 340px));
+  padding: 8px 16px;
+  font-size: 12.5px;
+  text-align: center;
+  background: var(--ui-bg);
+  border: 1px solid var(--ui-border);
+  border-radius: 999px;
+  backdrop-filter: blur(8px);
+}
+
+/* Apparatus value selectors (top-left, under the brand). */
+.ui-apparatus {
+  position: absolute;
+  top: 76px;
+  left: 20px;
+  padding: 12px 14px;
+  color: var(--ui-fg);
+  font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+  font-size: 12px;
+  background: var(--ui-bg);
+  border: 1px solid var(--ui-border);
+  border-radius: 12px;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+  pointer-events: auto;
+}
+
+.ui-apparatus h3 {
+  margin: 0 0 8px;
+  font-size: 11px;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  opacity: 0.7;
+}
+
+.ui-apparatus-row {
+  display: flex;
+  gap: 10px;
+}
+
+.ui-apparatus-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+  opacity: 0.85;
+}
+
+.ui-apparatus-field select {
+  font: inherit;
+  font-size: 12px;
+  color: var(--ui-fg);
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--ui-border);
+  border-radius: 8px;
+  padding: 5px 6px;
+  cursor: pointer;
+}
+
+/* Observation table (bottom-left). */
+.ui-observations {
+  position: absolute;
+  bottom: 20px;
+  left: 20px;
+  min-width: 288px;
+  padding: 12px 14px;
+  color: var(--ui-fg);
+  font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+  font-size: 12px;
+  background: var(--ui-bg);
+  border: 1px solid var(--ui-border);
+  border-radius: 12px;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+  pointer-events: auto;
+}
+
+.ui-observations h3 {
+  margin: 0 0 8px;
+  font-size: 11px;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  opacity: 0.7;
+}
+
+.ui-observations table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+.ui-observations th,
+.ui-observations td {
+  padding: 3px 8px;
+  text-align: right;
+}
+
+.ui-observations th:first-child,
+.ui-observations td:first-child {
+  text-align: left;
+}
+
+.ui-observations thead th {
+  font-family: "Segoe UI", system-ui, sans-serif;
+  font-weight: 600;
+  opacity: 0.65;
+  border-bottom: 1px solid var(--ui-border);
+}
+
+.ui-observations .ui-obs-theory {
+  display: none;
+}
+
+.ui-observations.ui-obs--revealed .ui-obs-theory {
+  display: table-cell;
+}
+
+.ui-obs-row--ok td {
+  color: #3ee06a;
+}
+
+.ui-obs-empty td {
+  padding: 6px 8px;
+  text-align: left !important;
+  opacity: 0.5;
+}
+
+.ui-obs-verdict {
+  margin: 8px 0 0;
+  font-size: 12px;
+  opacity: 0.8;
+}
+
+.ui-obs-verdict--ok {
+  color: #3ee06a;
+  opacity: 1;
+}
+
+.ui-obs-verdict--bad {
+  color: #ff6b6b;
+  opacity: 1;
+}
+
+.ui-obs-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.ui-obs-actions button[data-action] {
+  font-size: 11.5px;
+  padding: 6px 10px;
+  border-radius: 8px;
+}
+
+.ui-obs-actions button[data-action="clear"],
+.ui-obs-actions button[data-action="reveal"] {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+button[data-action]:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  filter: none;
+  transform: none;
+}
+

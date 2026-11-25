@@ -1,4 +1,5 @@
 import type { WiringState } from "../state/wiring";
+import { DEFAULT_RESISTOR_SET } from "../experiment/components";
 
 /** A resistive branch between two terminal ids (the kit's R1/R2/R3). */
 export interface ResistorBranch {
@@ -35,8 +36,8 @@ export interface CircuitParams {
   r3: number;
 }
 
-/** The element values silk-screened on the kit board (must mirror kitBase). */
-export const DEFAULT_CIRCUIT: CircuitParams = { E: 6, r1: 100, r2: 100, r3: 100 };
+/** Default element values: the resistor set the kit board is silk-screened with. */
+export const DEFAULT_CIRCUIT: CircuitParams = { E: 6, ...DEFAULT_RESISTOR_SET };
 
 /** Every patchable terminal id, in a stable order. */
 export const TERMINAL_IDS = [

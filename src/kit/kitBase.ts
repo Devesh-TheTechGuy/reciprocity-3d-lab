@@ -1,22 +1,22 @@
 import * as THREE from "three";
 import { matBoard, matBrass, matBakelite, makeNameplate } from "./materials";
 import { createTerminal, type Terminal } from "./terminal";
-import { createResistorUnit } from "./resistor";
-
-/** Which resistor in the T-network this is (values are set per experiment run). */
-export interface ResistorValues {
-  r1: string;
-  r2: string;
-  r3: string;
-}
+import { createResistorUnit, type ResistorUnit } from "./resistor";
+import {
+  DEFAULT_RESISTOR_SET,
+  formatOhms,
+  type ResistorSet,
+} from "../experiment/components";
 
 export interface KitBase {
   group: THREE.Group;
   terminals: Terminal[];
   terminalsById: Record<string, Terminal>;
+  /** Repaint the R1/R2/R3 nameplates (geometry + terminals are left untouched). */
+  setResistors(values: ResistorSet): void;
 }
 
-export const DEFAULT_RESISTORS: ResistorValues = { r1: "100 Ω", r2: "100 Ω", r3: "100 Ω" };
+export const DEFAULT_RESISTORS: ResistorSet = DEFAULT_RESISTOR_SET;
 
 const TOP_Z = -0.26;
 const BOTTOM_Z = 0.26;
@@ -34,7 +34,7 @@ const RIGHT_X = 0.78;
  *                        │
  *   T2 (rail) ──────── T5 ──────── T4 (rail)
  */
-export function createKitBase(values: ResistorValues = DEFAULT_RESISTORS): KitBase {
+export function createKitBase(values: ResistorSet = DEFAULT_RESISTORS): KitBase {
   const group = new THREE.Group();
   group.name = "kit-base";
 
@@ -91,19 +91,19 @@ export function createKitBase(values: ResistorValues = DEFAULT_RESISTORS): KitBa
   // R1 (T1→C1) and R2 (C1→T3) along the top rail.
   const axisY = 0.042;
   const halfSpan = RIGHT_X; // distance from the centre node to either outer terminal (0.78)
-  const r1 = createResistorUnit("R1", values.r1, halfSpan);
-  r1.position.set(LEFT_X / 2, axisY, TOP_Z);
-  group.add(r1);
+  const r1 = createResistorUnit("R1", formatOhms(values.r1), halfSpan);
+  r1.group.position.set(LEFT_X / 2, axisY, TOP_Z);
+  group.add(r1.group);
 
-  const r2 = createResistorUnit("R2", values.r2, halfSpan);
-  r2.position.set(RIGHT_X / 2, axisY, TOP_Z);
-  group.add(r2);
+  const r2 = createResistorUnit("R2", formatOhms(values.r2), halfSpan);
+  r2.group.position.set(RIGHT_X / 2, axisY, TOP_Z);
+  group.add(r2.group);
 
   // R3 (C1→T5) down the middle.
-  const r3 = createResistorUnit("R3", values.r3, BOTTOM_Z - TOP_Z);
-  r3.position.set(0, axisY, 0);
-  r3.rotation.y = Math.PI / 2;
-  group.add(r3);
+  const r3 = createResistorUnit("R3", formatOhms(values.r3), BOTTOM_Z - TOP_Z);
+  r3.group.position.set(0, axisY, 0);
+  r3.group.rotation.y = Math.PI / 2;
+  group.add(r3.group);
 
   const plate = makeNameplate(0.66, 0.07, ["RECIPROCITY THEOREM KIT"], {
     bg: "#f5f1e6",
@@ -114,5 +114,16 @@ export function createKitBase(values: ResistorValues = DEFAULT_RESISTORS): KitBa
   plate.position.set(0, 0.031, 0.36);
   group.add(plate);
 
-  return { group, terminals, terminalsById };
+  const units: Record<keyof ResistorSet, ResistorUnit> = { r1, r2, r3 };
+
+  return {
+    group,
+    terminals,
+    terminalsById,
+    setResistors(next: ResistorSet): void {
+      units.r1.setValue(formatOhms(next.r1));
+      units.r2.setValue(formatOhms(next.r2));
+      units.r3.setValue(formatOhms(next.r3));
+    },
+  };
 }

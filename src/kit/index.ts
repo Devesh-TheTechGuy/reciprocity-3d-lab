@@ -1,8 +1,9 @@
 import * as THREE from "three";
-import { createKitBase, DEFAULT_RESISTORS, type KitBase, type ResistorValues } from "./kitBase";
+import { createKitBase, DEFAULT_RESISTORS, type KitBase } from "./kitBase";
 import { createPowerSupply, type PowerSupply } from "./powerSupply";
 import { createMultimeter, type Multimeter } from "./multimeter";
 import type { Terminal } from "./terminal";
+import type { ResistorSet } from "../experiment/components";
 
 export interface LabKit {
   group: THREE.Group;
@@ -26,7 +27,7 @@ export interface LabKit {
  */
 export function createLabKit(
   surfaceY: number,
-  values: ResistorValues = DEFAULT_RESISTORS,
+  values: ResistorSet = DEFAULT_RESISTORS,
 ): LabKit {
   const group = new THREE.Group();
   group.name = "lab-kit";

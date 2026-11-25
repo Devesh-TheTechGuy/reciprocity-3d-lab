@@ -9,6 +9,9 @@ import { WiringState } from "./state/wiring";
 import { WiringTool } from "./interaction/wiringTool";
 import { CameraRig, type CameraMode } from "./interaction/cameraRig";
 import { Hud, type ReadoutView } from "./ui/hud";
+import { ObservationTable } from "./ui/observationTable";
+import { ExperimentFlow } from "./experiment/flow";
+import type { ResistorSet } from "./experiment/components";
 import {
   DEFAULT_CIRCUIT,
   solveCircuit,
@@ -85,10 +88,37 @@ const wiringTool = new WiringTool({
 rig.isOtherDragging = () => wiringTool.isDragging;
 
 // ---------------------------------------------------------------------------
+// M4 — experiment flow. The Fig 1(a)→1(b) state machine + the observation table.
+// ---------------------------------------------------------------------------
+const flow = new ExperimentFlow();
+
+const observations = new ObservationTable({
+  onRecord: (label) => {
+    if (flow.record(label)) refreshReadings();
+  },
+  onClear: () => {
+    flow.reset();
+    refreshReadings();
+  },
+  onResistorChange: (values: ResistorSet) => {
+    // Re-silk-screen the board and hand the new values to the solver, then start
+    // a fresh A/B pair (rows are keyed by the resistor set).
+    kit.components.base.setResistors(values);
+    circuit.r1 = values.r1;
+    circuit.r2 = values.r2;
+    circuit.r3 = values.r3;
+    refreshReadings();
+  },
+});
+
+// ---------------------------------------------------------------------------
 // M3 — physics. Solve the live circuit and float the meters off the result.
 // ---------------------------------------------------------------------------
 const circuit: CircuitParams = { ...DEFAULT_CIRCUIT };
 let shownEmf = Number.NaN;
+
+// Reflect the board's starting resistor values in the apparatus selectors.
+observations.setResistors({ r1: circuit.r1, r2: circuit.r2, r3: circuit.r3 });
 
 function refreshReadings(): void {
   const solution = solveCircuit(wiring, circuit);
@@ -121,6 +151,11 @@ function refreshReadings(): void {
     amps: `${amps.toFixed(2)} mA`,
     theory: `${(theory * 1000).toFixed(2)} mA`,
   });
+
+  // M4 — drive the experiment flow + observation table from the same solution.
+  const view = flow.update(solution, circuit);
+  hud?.setPrompt(view.prompt);
+  observations.render(view);
 }
 
 wiring.onChange(refreshReadings);
@@ -147,5 +182,21 @@ if (import.meta.env.DEV) {
     solveCircuit,
     theoreticalCurrent,
     refreshReadings,
+    flow,
+    observations,
+    // QA helpers: apply a resistor set / record a reading without the UI.
+    setResistors: (values: ResistorSet) => {
+      kit.components.base.setResistors(values);
+      circuit.r1 = values.r1;
+      circuit.r2 = values.r2;
+      circuit.r3 = values.r3;
+      observations.setResistors(values);
+      refreshReadings();
+    },
+    recordObservation: (label: "A" | "B") => {
+      const ok = flow.record(label);
+      refreshReadings();
+      return ok;
+    },
   };
 }
