@@ -27,8 +27,8 @@ pad, long-press unplug, drag-to-look, phone layout). Slices 3 and 4 share hunks 
 
 **M5 is the last milestone in `PLAN.md` §6, so the lab is feature-complete.** The
 **very next action:** a hand test on a real phone (or a narrow desktop window under
-760 px) — everything is committed **and pushed** (tip `689ab1f`, clean tree) and the
-headless CDP-touch run already clears 390×844 and 375×667 (§5i).
+760 px) — everything is committed **and pushed** (M5 code in `afa8d0b`; clean tree)
+and the headless CDP-touch run already clears 390×844 and 375×667 (§5i).
 
 ---
 
@@ -43,10 +43,11 @@ headless CDP-touch run already clears 390×844 and 375×667 (§5i).
 | git user.email | `deveshgopal11@gmail.com` |
 | GitHub CLI auth | `gh` authed as `Devesh-TheTechGuy` (keyring, scopes: repo, gist, read:org, workflow) |
 
-**Commit history (newest first).** `origin/main` is at **`689ab1f`** and the working
-tree is clean — every commit below is **pushed**:
+**Commit history (newest first).** All of M0–M5 is **pushed** to `origin/main` and
+the working tree is clean; the M5 slice 5 code is `afa8d0b`. (Docs-record commits
+sit on top of the list and are not itemised individually.)
 ```
-689ab1f docs: note CDP touch-coordinate loss + focused-context pointer lock in PROGRESS gotchas   [origin/main]
+689ab1f docs: note CDP touch-coordinate loss + focused-context pointer lock in PROGRESS gotchas
 afa8d0b M5 slice 5: mobile/touch fallback (on-screen pad, long-press unplug, phone layout)
 9809458 docs: record M5 slices 3+4 commit hash (126a5b5) in PROGRESS
 126a5b5 M5 slices 3+4: sound cues, 2D circuit-map schematic, performance pass
@@ -632,8 +633,7 @@ pointer lock on a phone, so every desktop gesture got a touch equivalent.
 `npm run build` (green) → committed the lock fix + `PROGRESS.md` as `74fda29` and
 pushed → implemented + verified M3 (§4/§5b) and pushed → implemented + verified
 **M4** (§4/§5c) as `9f7c33c`, then updated this file → **M5 slice 1** (post-FX,
-§5d) committed locally as `cd9cd3f` (not pushed) → **M5 slice 2** (HDRI
-environment, §5e) implemented + verified and staged for its own commit → the
+§5d) as `cd9cd3f` → **M5 slice 2** (HDRI environment, §5e) as `11f9d8b` → the
 **2D circuit-map schematic** (§5f), **M5 slice 3 sound cues** (§5g) and **M5
 slice 4 performance pass** (§5h) implemented + verified, then committed together
 as `126a5b5` (they share hunks in `main.ts`/`style.css`, so one commit keeps the
