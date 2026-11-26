@@ -55,7 +55,9 @@ const lighting = createLighting(engine.scene, ROOM);
 const environment = new Environment({
   renderer: engine.renderer,
   scene: engine.scene,
-  url: "/assets/hdri/studio_small_09_1k.hdr",
+  // `BASE_URL` is "/" in dev and "/reciprocity-3d-lab/" on GitHub Pages, so the
+  // HDRI resolves under whatever base the build was produced with.
+  url: `${import.meta.env.BASE_URL}assets/hdri/studio_small_09_1k.hdr`,
   intensity: 0.45,
   background: true,
   backgroundIntensity: 0.28,

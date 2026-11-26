@@ -6,6 +6,9 @@ kit with cords, and read live, physically-accurate values.
 
 Built with **Vite + TypeScript + three.js** (WebGL2).
 
+**Live:** <https://devesh-thetechguy.github.io/reciprocity-3d-lab/> — open it on a
+phone to try the touch layout.
+
 ## The experiment
 
 - **Aim:** To verify the reciprocity theorem.
@@ -71,6 +74,13 @@ npm run preview  # serve the built bundle
 
 > On Windows, if `node`/`npm` are not on `PATH`:
 > `$env:Path = 'C:\Program Files\nodejs\;' + $env:Path`
+
+## Deploying
+
+Pushing to `main` publishes to GitHub Pages via `.github/workflows/deploy.yml`,
+which runs `npm run build:pages` (that script sets `--base=/reciprocity-3d-lab/`
+so the bundle and the HDRI resolve under the project sub-path). The workflow can
+also be started by hand from the **Actions** tab.
 
 ## Project structure
 

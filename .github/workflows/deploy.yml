@@ -1,0 +1,52 @@
+name: Deploy to GitHub Pages
+
+# Publishes the lab to https://devesh-thetechguy.github.io/reciprocity-3d-lab/
+# on every push to `main`.
+#
+# Repo setup (already done on 2026-11-26 via the API): Settings -> Pages ->
+# Build and deployment -> Source = "GitHub Actions" (`build_type: workflow`).
+# If a fork ever 404s, that setting is the one to flip.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Least privilege for the Pages deploy: read the repo, mint an OIDC token, publish.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Never let two deploys race; a newer push supersedes an in-flight one.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # `build:pages` = tsc + vite build with --base=/reciprocity-3d-lab/ so the
+      # bundle and the HDRI resolve under the project sub-path.
+      - run: npm run build:pages
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

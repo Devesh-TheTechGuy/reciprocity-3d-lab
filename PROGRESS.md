@@ -25,6 +25,10 @@ pad, long-press unplug, drag-to-look, phone layout). Slices 3 and 4 share hunks 
 
 **Nothing is half-edited.** `npm run build` is green.
 
+**Live demo:** <https://devesh-thetechguy.github.io/reciprocity-3d-lab/> (GitHub
+Pages, auto-deployed from `main` — §5j) — this is the surface for the real-device
+touch pass.
+
 **M5 is the last milestone in `PLAN.md` §6, so the lab is feature-complete.** The
 **very next action:** a hand test on a real phone (or a narrow desktop window under
 760 px) — everything is committed **and pushed** (M5 code in `afa8d0b`; clean tree)
@@ -38,6 +42,7 @@ and the headless CDP-touch run already clears 390×844 and 375×667 (§5i).
 | --- | --- |
 | Local project path | `d:\Devesh\Devesh 2\Python\ML\Deepseek end Point\reciprocity-3d-lab` |
 | Remote (origin) | `https://github.com/Devesh-TheTechGuy/reciprocity-3d-lab` (**PUBLIC**) |
+| Live site | `https://devesh-thetechguy.github.io/reciprocity-3d-lab/` (GitHub Pages, §5j) |
 | Branch | `main` (tracks `origin/main`) |
 | git user.name | `Devesh-TheTechGuy` |
 | git user.email | `deveshgopal11@gmail.com` |
@@ -82,6 +87,7 @@ Set-Location 'd:\Devesh\Devesh 2\Python\ML\Deepseek end Point\reciprocity-3d-lab
 
 npm run dev      # http://localhost:5173
 npm run build    # tsc (strict) + vite build -> dist/
+npm run build:pages  # tsc + vite build --base=/reciprocity-3d-lab/ (GitHub Pages, §5j)
 npm run preview  # serve the built bundle
 ```
 
@@ -627,6 +633,41 @@ pointer lock on a phone, so every desktop gesture got a touch equivalent.
 
 ---
 
+## 5j. Deploy — GitHub Pages (live demo)
+
+- **`.github/workflows/deploy.yml`** — a `build` job (`actions/checkout` →
+  `setup-node` 22 + npm cache → `npm ci` → `npm run build:pages` →
+  `actions/configure-pages` → `actions/upload-pages-artifact`) and a `deploy` job
+  (`actions/deploy-pages@v4`). Runs on every push to `main` and on
+  `workflow_dispatch`; `concurrency: pages` (cancel-in-progress) stops a superseded
+  deploy from racing; permissions are `contents: read`, `pages: write`,
+  `id-token: write` (least privilege — the OIDC token is what Pages trusts).
+- **Base path:** a Pages *project* site is served under `/<repo>/`, so absolute
+  asset URLs would 404. `package.json` gained
+  **`"build:pages": "tsc && vite build --base=/reciprocity-3d-lab/"`**, and
+  `vite.config.ts` was deliberately left alone so local `npm run dev` still serves
+  at the root (`http://localhost:5173/`, as §2 documents). The `BASE_URL` is baked
+  in at build time, so dev and Pages each get the right path from one code path.
+- **The one runtime asset URL** — the HDRI in `main.ts` — is now
+  `` `${import.meta.env.BASE_URL}assets/hdri/studio_small_09_1k.hdr` `` instead of a
+  hard-coded `/assets/…`. It was the *only* absolute path in `src/` (checked with a
+  case-insensitive `Select-String` over every `.ts`), so nothing else needed
+  touching.
+- **Pages enabled** with
+  `gh api -X POST repos/Devesh-TheTechGuy/reciprocity-3d-lab/pages -f build_type=workflow`
+  → `{ "build_type": "workflow", "source": { "branch": "main", "path": "/" } }`
+  (i.e. Settings → Pages → Source = *GitHub Actions*). Live at
+  **https://devesh-thetechguy.github.io/reciprocity-3d-lab/**.
+- **Verified locally before pushing:** `npm run build:pages` emits a
+  `dist/index.html` pointing at `/reciprocity-3d-lab/assets/index-*.js|.css`, the
+  HDRI is copied to `dist/assets/hdri/studio_small_09_1k.hdr`, and the minified
+  bundle contains the literal
+  `/reciprocity-3d-lab/assets/hdri/studio_small_09_1k.hdr` (the constant
+  concatenation was folded by rolldown, so no runtime `BASE_URL` lookup is left).
+  Note `npm run build` (base `/`) is unchanged and still green.
+
+---
+
 ## 6. What I was doing / about to do
 
 ### 6.1 Already done this session
@@ -665,6 +706,10 @@ from `main.ts`'s `refreshReadings()`.
   drag-to-look, a coarse-pointer HUD hint, and the `@media (max-width: 760px)`
   phone layout with the `html.ui-fp` hook. Pushed as `afa8d0b`. Next: a
   real-device visual pass.
+- **Deploy (this session) — DONE** (§5j): GitHub Pages workflow
+  (`.github/workflows/deploy.yml`), the `build:pages` base-path script, and the
+  `BASE_URL` fix for the HDRI. Live at
+  <https://devesh-thetechguy.github.io/reciprocity-3d-lab/>.
 - **Deferred:** the **outer** repo (rooted at `…\Deepseek end Point`) has no
   `.gitignore` at all, so silencing the embedded-repo warning means *creating* one
   there — not done (a different repo).
