@@ -2,7 +2,7 @@
 
 A browser-based, first-person 3D simulation of the school-lab experiment
 **"To Verify the Reciprocity Theorem"**. Walk up to a real lab bench, patch the
-kit with cords, and (soon) read live, physically-accurate values.
+kit with cords, and read live, physically-accurate values.
 
 Built with **Vite + TypeScript + three.js** (WebGL2).
 
@@ -54,6 +54,12 @@ meters (two instances) — exactly how a school lab reproduces it.
 Multiple cords may share one terminal (the source and the voltmeter both reach
 `T1`, as the figure requires).
 
+On a phone or tablet the lab switches to a touch layout: an on-screen **walk pad**
+in first-person, **drag to look**, **drag a cord** between terminals to patch it,
+and **press and hold** a plugged terminal to unplug it (there is no right-click).
+The circuit map, readout and observation table fold into a narrow bottom-sheet
+layout, and the renderer drops to the *medium* quality preset automatically.
+
 ## Getting started
 
 ```powershell
@@ -80,7 +86,7 @@ src/
   kit/                     # kit board, resistors, terminals, DC source, DMM, cords
   cords/verletRope.ts      # position-based (Verlet) cord simulation
   state/wiring.ts          # live wiring graph + Fig-1 A/B detection
-  physics/                 # (M3) circuit model + MNA solver
+  physics/                 # circuit model (nodes/branches) + MNA solver
 ```
 
 ## Roadmap
@@ -89,8 +95,10 @@ src/
 - [x] **M1** room — walls, windows, lighting, fan, table, orbit → first-person walk.
 - [x] **M2** kit + cords — reciprocity kit (R1/R2/R3, terminals, DC source, DMM),
       Verlet patch cords, drag/snap wiring, wiring graph.
-- [ ] **M3** physics — circuit graph + MNA solver, live `E`, `I_A`, `I_B` readouts.
-- [ ] **M4** experiment flow — Fig 1(a)→1(b) state machine, observation table, verify.
-- [ ] **M5** polish — HDRI environment, post-FX, sound, performance pass.
+- [x] **M3** physics — circuit graph + MNA solver, live `E`, `I_A`, `I_B` readouts.
+- [x] **M4** experiment flow — Fig 1(a)→1(b) state machine, observation table, verify.
+- [x] **M5** polish — HDRI environment, post-FX (SSAO/bloom), sound cues, 2D circuit
+      map, performance pass (quality presets + adaptive governor), mobile/touch
+      fallback.
 
 See [`PLAN.md`](./PLAN.md) for the full plan.

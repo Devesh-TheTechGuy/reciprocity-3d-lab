@@ -129,13 +129,13 @@ reciprocity-3d-lab/
     run a new cord, drag to another terminal and release to snap; right-click to
     unplug. Stacking cords on one terminal is allowed (E and V both reach T1).
     WiringState.detectConfig() recognises Fig-1 arrangement A / B.
-  - M3 (physics) is next.
-- M3 (physics): circuit graph from wiring state, MNA solver, live E/I_A/I_B values,
-  DMM readout, supply dial.
-- M4 (experiment flow): state machine for Fig 1(a) -> 1(b), observation table UI,
-  "verify" check, resistor change + repeat, result statement.
-- M5 (polish): HDRI environment, post-FX (SSAO/bloom), sound cues, animations,
-  performance pass, mobile/touch fallback.
+  - M3 (physics), M4 (experiment flow) and M5 (polish) followed — all done.
+- M3 (physics) [done]: circuit graph from wiring state, MNA solver, live E/I_A/I_B
+  values, DMM readout, supply dial.
+- M4 (experiment flow) [done]: state machine for Fig 1(a) -> 1(b), observation table
+  UI, "verify" check, resistor change + repeat, result statement.
+- M5 (polish) [done]: HDRI environment, post-FX (SSAO/bloom), sound cues, 2D circuit
+  map, performance pass (quality presets + adaptive governor), mobile/touch fallback.
 
 ## 7. Asset pipeline
 - Figures: fig1a.jpg / fig1b.jpg recovered from the PDF into docs/reference/figures

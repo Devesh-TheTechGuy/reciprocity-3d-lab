@@ -25,9 +25,10 @@ pad, long-press unplug, drag-to-look, phone layout). Slices 3 and 4 share hunks 
 
 **Nothing is half-edited.** `npm run build` is green.
 
-**The very next action:** push, then a quick visual pass on a real phone (or a
-narrow desktop window under 760 px) — the headless CDP-touch run already clears
-390×844 and 375×667 (§5i).
+**M5 is the last milestone in `PLAN.md` §6, so the lab is feature-complete.** The
+**very next action:** a hand test on a real phone (or a narrow desktop window under
+760 px) — everything is committed **and pushed** (tip `689ab1f`, clean tree) and the
+headless CDP-touch run already clears 390×844 and 375×667 (§5i).
 
 ---
 
@@ -42,12 +43,17 @@ narrow desktop window under 760 px) — the headless CDP-touch run already clear
 | git user.email | `deveshgopal11@gmail.com` |
 | GitHub CLI auth | `gh` authed as `Devesh-TheTechGuy` (keyring, scopes: repo, gist, read:org, workflow) |
 
-**Commit history (newest first).** `origin/main` is at **`4cd0ecb`**; the two M5
-commits above it are **local-only** until pushed:
+**Commit history (newest first).** `origin/main` is at **`689ab1f`** and the working
+tree is clean — every commit below is **pushed**:
 ```
-11f9d8b M5 slice 2: HDRI environment (HDRLoader + PMREM IBL) + exposure rebalance   [local]
-cd9cd3f M5 slice 1: post-FX (EffectComposer + SSAO + bloom + OutputPass) + lighting rebalance   [local]
-4cd0ecb docs: record M4 (flow + Table 1 + resistor swap) in PROGRESS   [origin/main]
+689ab1f docs: note CDP touch-coordinate loss + focused-context pointer lock in PROGRESS gotchas   [origin/main]
+afa8d0b M5 slice 5: mobile/touch fallback (on-screen pad, long-press unplug, phone layout)
+9809458 docs: record M5 slices 3+4 commit hash (126a5b5) in PROGRESS
+126a5b5 M5 slices 3+4: sound cues, 2D circuit-map schematic, performance pass
+1675a4e docs: record M5 slice 1 + 2 commit hashes; tidy environment.ts header
+11f9d8b M5 slice 2: HDRI environment (HDRLoader + PMREM IBL) + exposure rebalance
+cd9cd3f M5 slice 1: post-FX (EffectComposer + SSAO + bloom + OutputPass) + lighting rebalance
+4cd0ecb docs: record M4 (flow + Table 1 + resistor swap) in PROGRESS
 9f7c33c M4: experiment flow + Table 1 observation table + resistor-value swap
 d7dd265 docs: record M3 commit hash (b1919b0) in PROGRESS
 b1919b0 M3: physics — netlist + MNA solver + live E/V/I readouts
@@ -58,10 +64,11 @@ b1919b0 M3: physics — netlist + MNA solver + live E/V/I readouts
 ```
 
 **WARNING — nested repo:** `reciprocity-3d-lab/` has its own `.git` and sits
-*inside* another repo rooted at `…\Deepseek end Point`. The outer repo sees this
-folder as an untracked/embedded repo. When running git commands, always
-`Set-Location` into `reciprocity-3d-lab` first. (Consider adding
-`reciprocity-3d-lab/` to the outer repo's `.gitignore`.)
+*inside* another git repo rooted at `…\Deepseek end Point` (re-verified this
+session: that folder has a `.git` **but no `.gitignore`**). The outer repo sees this
+folder as an embedded/untracked repo. Always `Set-Location` into
+`reciprocity-3d-lab` first when running git. Ignoring it in the outer repo would
+mean *creating* a `.gitignore` there — deferred (a different repo).
 
 ---
 
@@ -656,10 +663,11 @@ from `main.ts`'s `refreshReadings()`.
   `ui/touchPad.ts` (on-screen pad + Overview), long-press-to-unplug in
   `WiringTool` (shares `unplugAt` with the desktop right-click), touch
   drag-to-look, a coarse-pointer HUD hint, and the `@media (max-width: 760px)`
-  phone layout with the `html.ui-fp` hook. Next: push, then a real-device visual
-  pass.
-- **Deferred:** add `reciprocity-3d-lab/` to the **outer** repo's `.gitignore`
-  (nested-repo noise) — not done (would touch a different repo).
+  phone layout with the `html.ui-fp` hook. Pushed as `afa8d0b`. Next: a
+  real-device visual pass.
+- **Deferred:** the **outer** repo (rooted at `…\Deepseek end Point`) has no
+  `.gitignore` at all, so silencing the embedded-repo warning means *creating* one
+  there — not done (a different repo).
 - **Optional realism:** give the meters a burden resistance (ammeter ≈1 Ω, voltmeter
   ≈10 MΩ) instead of the current ideal 0 Ω / open model.
 
@@ -801,6 +809,11 @@ already applied), `m5s2-env-scene.png` (first-person kit, env on),
 live — "60 fps", **Low** active — with the whole scene still rendering: no black
 frame at the cheapest tier) and `m5s4-perf-high.png` (High active, 4× MSAA + SSAO
 + bloom + 2048² shadows).
+
+**M5 slice 5 (mobile/touch, §5i):** `m5s5-phone-intro.png` (390×844 — the intro card
+fits), `m5s5-phone-orbit.png`, `m5s5-phone-firstperson.png` (pad + touch hint +
+observation bottom sheet, no overlaps), `m5s5-phone-wiring.png` (a cord patched by
+touch), plus `m5s5-phone390-orbit.png` / `m5s5-phone390-fp.png` (the 375×667 pass).
 
 ## 12. Open decisions / risks
 - **Physics values — RESOLVED in M4:** the two-place duplication is gone.
