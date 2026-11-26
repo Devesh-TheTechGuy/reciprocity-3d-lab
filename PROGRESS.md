@@ -665,6 +665,14 @@ pointer lock on a phone, so every desktop gesture got a touch equivalent.
   `/reciprocity-3d-lab/assets/hdri/studio_small_09_1k.hdr` (the constant
   concatenation was folded by rolldown, so no runtime `BASE_URL` lookup is left).
   Note `npm run build` (base `/`) is unchanged and still green.
+- **Verified live (after the first deploy):** `GET /reciprocity-3d-lab/` → **200**
+  with the two hashed asset refs, and
+  `HEAD …/assets/hdri/studio_small_09_1k.hdr` → **200**, `content-length: 1615248`.
+  Loaded in a real browser: **0 console errors / 0 warnings** and four 200s (root,
+  JS, CSS, HDRI — the HDRI is the proof the `BASE_URL` resolved at runtime); the
+  canvas rendered (1034×729 at desktop size), the perf panel read a live
+  "60 fps auto · High", and at **390×844** nothing was off screen (readout 166–378,
+  apparatus 146–378, schematic 178–378 × 268–528, intro card 16–374 × 310–534).
 
 ---
 
@@ -876,6 +884,11 @@ touch), plus `m5s5-phone390-orbit.png` / `m5s5-phone390-fp.png` (the 375×667 pa
 - Pointer lock inside VS Code *Simple Browser / Live Preview* iframes can be refused — the
   drag-to-look fallback covers that, but the preferred surface is a normal browser tab
   at `http://localhost:5173`.
+- **Pages workflow deprecation annotation (harmless):** the pinned actions
+  (`checkout@v4`, `setup-node@v4`, `configure-pages@v5`, `deploy-pages@v4`) target
+  Node 20, so GitHub forces them onto Node 24 and prints a deprecation *warning* on
+  each run — the jobs still pass (build 13 s, deploy 21 s). Bump the action majors
+  when new ones land.
 - `docs/reference/*.py` (PDF extractors) + `pdf_content.txt` + `figures/fig1a.jpg`,
   `fig1b.jpg` are committed as the source-of-truth for the experiment — do not delete.
 
